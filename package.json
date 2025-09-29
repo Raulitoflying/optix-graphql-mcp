@@ -1,12 +1,21 @@
 {
-	"name": "mcp-graphql",
+	"name": "optix-graphql-mcp",
 	"module": "index.ts",
-	"type": "module",
-	"version": "2.0.4",
-	"repository": "github:blurrah/mcp-graphql",
+	"version": "1.0.0",
+	"description": "MCP Server for Optix workspace management with business-specific tools",
+	"repository": "github:Raulitoflying/optix-graphql-mcp",
+	"keywords": [
+		"mcp",
+		"graphql",
+		"optix",
+		"workspace",
+		"booking",
+		"coworking"
+	],
 	"license": "MIT",
+	"author": "Raul",
 	"bin": {
-		"mcp-graphql": "./dist/index.js"
+		"optix-graphql-mcp": "./dist/index.js"
 	},
 	"files": [
 		"dist"
@@ -14,9 +23,11 @@
 	"devDependencies": {
 		"@graphql-tools/schema": "^10.0.23",
 		"@types/bun": "^1.2.14",
+		"@types/node": "^22.10.2",
 		"@types/yargs": "17.0.33",
 		"biome": "^0.3.3",
 		"graphql-yoga": "^5.13.5",
+		"tsx": "^4.20.6",
 		"typescript": "5.8.3"
 	},
 	"dependencies": {
@@ -27,11 +38,12 @@
 		"zod-to-json-schema": "3.24.5"
 	},
 	"scripts": {
-		"dev": "bun --watch src/index.ts",
-		"build": "bun build src/index.ts --outdir dist --target node && bun -e \"require('fs').chmodSync('dist/index.js', '755')\"",
-		"start": "bun run dist/index.js",
+		"dev": "tsx src/index.ts",
+		"build": "tsc && chmod +x dist/index.js",
+		"start": "node dist/index.js",
 		"format": "biome format --write .",
-		"check": "biome format ."
+		"check": "biome format .",
+		"test": "echo \"Add tests for Optix tools\" && exit 0"
 	},
 	"packageManager": "bun@1.2.19"
 }

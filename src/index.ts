@@ -2,7 +2,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { parse } from "graphql/language";
+import { parse } from "graphql";
 import { z } from "zod";
 import { checkDeprecatedArguments } from "./helpers/deprecation.js";
 import {
@@ -10,7 +10,10 @@ import {
 	introspectLocalSchema,
 	introspectSchemaFromUrl,
 } from "./helpers/introspection.js";
-import { getVersion } from "./helpers/package.js" with { type: "macro" };
+import { getVersion } from "./helpers/package.js";
+
+// Import Optix business tools
+import { createOptixTools } from "./optix/tools.js";
 
 // Check for deprecated command line arguments
 checkDeprecatedArguments();
@@ -37,10 +40,13 @@ const EnvSchema = z.object({
 
 const env = EnvSchema.parse(process.env);
 
+// Detect if this is an Optix API endpoint
+const IS_OPTIX = env.ENDPOINT.includes("optixapp.com") || env.ENDPOINT.includes("optix");
+
 const server = new McpServer({
 	name: env.NAME,
 	version: getVersion(),
-	description: `GraphQL MCP server for ${env.ENDPOINT}`,
+	description: `GraphQL MCP server for ${env.ENDPOINT}${IS_OPTIX ? " (with Optix business tools)" : ""}`,
 });
 
 server.resource("graphql-schema", new URL(env.ENDPOINT).href, async (uri) => {
@@ -214,6 +220,48 @@ server.tool(
 	},
 );
 
+// ==================== Register Optix Business Tools ====================
+
+if (IS_OPTIX) {
+	console.error("Detected Optix API - enabling business tools");
+	
+	const optixTools = createOptixTools();
+	
+	// Register each Optix tool
+	for (const [toolName, tool] of optixTools) {
+		server.tool(
+			toolName,
+			tool.description,
+			tool.inputSchema.shape, // Extract the shape from ZodObject
+			async (args: any) => {
+				try {
+					const result = await tool.execute(args, env.ENDPOINT, env.HEADERS);
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+							},
+						],
+					};
+				} catch (error: any) {
+					return {
+						isError: true,
+						content: [
+							{
+								type: "text" as const,
+								text: `Optix tool error: ${error.message}`,
+							},
+						],
+					};
+				}
+			},
+		);
+	}
+	
+	console.error(`Registered ${optixTools.size} Optix business tools`);
+}
+
 async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
@@ -221,6 +269,18 @@ async function main() {
 	console.error(
 		`Started graphql mcp server ${env.NAME} for endpoint: ${env.ENDPOINT}`,
 	);
+	
+	if (IS_OPTIX) {
+		console.error("🎯 Optix business tools are active!");
+		console.error("Available Optix tools:");
+		console.error("  • optix_list_bookings - List and filter bookings");
+		console.error("  • optix_check_availability - Check resource availability");
+		console.error("  • optix_create_booking - Create new bookings");
+		console.error("  • optix_list_members - Find and manage members");
+		console.error("  • optix_list_resources - Browse meeting rooms and spaces");
+		console.error("  • optix_get_booking_stats - Analytics and reports");
+		console.error("  • And many more business-specific tools!");
+	}
 }
 
 main().catch((error) => {
