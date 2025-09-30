@@ -1,0 +1,727 @@
+# Optix GraphQL Schema - 真实 API Schema
+# 来源: https://api.optixapp.com/graphql
+# 更新时间: 2025-09-30
+
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  # 基础信息
+  ping: Pong!
+  me: AuthenticatedUser!
+  organization(subdomain: String, organization_uuid: String): Organization
+  
+  # 收件箱
+  inboxUnread(organization_id: ID): [InboxUnread!]!
+  
+  # 访问模板
+  accessTemplates(
+    limit: Int = 100
+    page: Int = 1
+    order: AccessTemplateOrder = NAME_ASC
+    access_template_id: [ID!]
+    name: String
+  ): AccessTemplatePagination!
+  
+  accessTemplate(access_template_id: ID!): AccessTemplate
+  
+  # 账户管理
+  account(account: AccountInput!): Account!
+  accounts(
+    limit: Int = 100
+    page: Int = 1
+    order: AccountOrder
+    search_by_email: String
+    search_by_name: String
+    search: String
+    type: [String!]
+    primary_location: PrimaryLocationInput
+    team: AccountInput
+    member_id: [ID!]
+    team_id: [ID!]
+  ): AccountPagination!
+  
+  # 账户发票
+  accountInvoices(
+    account: AccountInput
+    limit: Int = 100
+    page: Int = 1
+    status: [InvoiceStatus!]
+    invoice_due_timestamp_from: Int
+    invoice_due_timestamp_to: Int
+    pending_invoice_due_timestamp_from: Int
+    pending_invoice_due_timestamp_to: Int
+    order: AccountInvoiceOrder = INVOICE_DUE_TIMESTAMP_DESC
+  ): InvoicePagination!
+  
+  # 账户KPI
+  accountKPIs(account: AccountInput!): [AccountKPI]
+  
+  # 账户计划
+  accountPlans(
+    limit: Int = 100
+    page: Int = 1
+    order: AccountPlanOrder
+    account_plan_id: [ID!]
+    plan_template_id: [ID!]
+    payer_account: AccountInput
+    access_usage_user_id: [ID!]
+    access_usage_account: AccountInput
+    search: String
+    status: [AccountPlanStatus!]
+    start_timestamp_from: Int
+    start_timestamp_to: Int
+    end_timestamp_from: Int
+    end_timestamp_to: Int
+    is_export: Boolean = false
+    show_hidden: Boolean = false
+  ): AccountPlanPagination!
+  
+  accountPlan(account_plan_id: ID!): AccountPlan
+  
+  # 活动记录
+  activities(
+    search: String
+    activity_type: [String!]
+    activity_id_from: ID
+    limit: Int = 1000
+    page: Int = 1
+  ): ActivityPagination!
+  
+  # 设施服务
+  amenities(
+    limit: Int = 100
+    page: Int = 1
+    order: AmenityOrder = NAME_ASC
+    amenity_id: [ID!]
+    type: [AmenityType!] = [RESOURCE]
+  ): AmenityPagination!
+  
+  # 分析查询
+  analyticsQuery(query: AnalyticsQueryInput!): AnalyticsQueryResponse
+  analyticsEntities(entities: [AnalyticsQueryEntityInput]!): AnalyticsEntityDescription
+  
+  # 公告
+  announcements(
+    limit: Int = 100
+    page: Int = 1
+    order: AnnouncementOrder
+    location_id: [ID!]
+    status: [AnnouncementStatus!]
+    title: String
+  ): AnnouncementPagination!
+  
+  announcement(announcement_id: ID!): Announcement
+  
+  # 公告互动
+  announcementInteractions(
+    announcement_id: ID!
+    limit: Int = 100
+    page: Int = 1
+    type: [AnnouncementInteractionType]
+    user: String
+    order: AnnouncementInteractionOrder
+  ): AnnouncementInteractionPagination!
+  
+  # 应用链接
+  appLinks(
+    limit: Int = 100
+    page: Int = 1
+    order: AppLinkOrder = NAME_ASC
+    name: String
+    position: [AppLinkPosition!]
+    is_visible: Boolean
+  ): AppLinkPagination!
+  
+  appLink(app_link_id: ID!): AppLink!
+  
+  # 分配任务
+  assignments(
+    first_occurrence_start_timestamp_from: Int
+    first_occurrence_start_timestamp_to: Int
+    last_occurrence_end_timestamp_from: Int
+    last_occurrence_end_timestamp_to: Int
+    resource: ResourceSearchInput
+    status: [AssignmentStatus!]
+    limit: Int = 100
+    page: Int = 1
+    order: AssignmentOrder
+  ): AssignmentPagination!
+  
+  assignment(assignment_id: ID!): Assignment
+  
+  # 附件
+  attachments(
+    attachments: [AttachmentInput!]
+    attachments_search: AttachmentSearchInput
+  ): Attachments!
+  
+  # 可用性阻塞
+  availabilityBlock(availability_block_id: ID!): AvailabilityBlock
+  
+  # 预订管理
+  bookings(
+    limit: Int = 100
+    page: Int = 1
+    order: BookingOrder
+    user_id: ID
+    include_new: Boolean
+    include_approved: Boolean
+    include_completed: Boolean
+    include_canceled: Boolean
+    include_cancelled: Boolean
+    include_rejected: Boolean
+    resource_id: [ID]
+    location_id: [ID]
+    start_timestamp_from: Int
+    start_timestamp_to: Int
+    end_timestamp_from: Int
+    end_timestamp_to: Int
+    start_from: Int
+    start_to: Int
+    invited: [InviteeStatus!]
+    booked_as: BookingAsType
+    in_progress: Boolean
+    is_hidden: Boolean
+    payment_calculate_mode: PaymentCalculateMode
+  ): BookingPagination!
+  
+  booking(booking_id: ID!): Booking
+  
+  bookingSet(
+    booking_session_id: ID
+    booking_id: [ID!]
+  ): BookingSet!
+  
+  bookingSources: [String!]
+  
+  # 日历
+  calendars(types: [CalendarType!]): [Calendar!]!
+  
+  # 签到
+  checkins(
+    limit: Int = 100
+    page: Int = 1
+    user_id: [ID]
+    location_id: [ID]
+    timestamp_from: Int
+    timestamp_to: Int
+    from: Int
+    to: Int
+  ): CheckinPagination!
+  
+  checkin(checkin_id: ID!): Checkin
+  
+  # 文档
+  documents(
+    limit: Int = 100
+    page: Int = 1
+    order: DocumentOrder
+    search: DocumentSearchInput
+  ): DocumentPagination!
+  
+  document(document_id: ID!): Document
+  
+  # 发票项目
+  invoiceItems(
+    limit: Int = 100
+    page: Int = 1
+    account: [AccountInput!]
+    search: String
+    invoice_status: [InvoiceStatus!]
+    invoice_due_timestamp_from: Int
+    invoice_due_timestamp_to: Int
+    order: InvoiceItemOrder = INVOICE_DUE_TIMESTAMP_DESC
+    origin_type: [InvoiceItemOriginType!]
+    primary_location_id: [ID!]
+    pending_invoice_item_id: [ID!]
+    is_export: Boolean = false
+  ): PendingInvoiceItemPagination!
+  
+  invoiceTags: [Tag!]
+  
+  # 交易
+  transactions(
+    organization_id: ID!
+    location_id: [ID!]
+    timestamp_from: Int
+    timestamp_to: Int
+    filter_by_type: [InvoiceTransactionType]
+    filter_by_status: InvoiceTransactionStatus
+    filter_by_payment_method: [InvoiceTransactionPaymentMethod]
+    search: String
+    order: InvoiceTransactionOrder
+    limit: Int = 100
+    page: Int = 1
+  ): InvoiceTransactionPagination!
+  
+  transactionManualPaymentTypes(include_suggestions: Boolean = false): [String!]!
+  
+  # 发票
+  invoices(
+    limit: Int = 100
+    page: Int = 1
+    order: InvoiceOrder
+    member_id: ID
+    team_id: ID
+    invoice_id: [ID]
+    tag_id: [ID!]
+    tag: [String!]
+    include_paid: Boolean
+    include_void: Boolean
+    include_upcoming: Boolean
+    status: [InvoiceStatus!]
+    due_from: Int
+    due_to: Int
+    search: String
+    primary_location_id: [ID!]
+  ): InvoicePagination!
+  
+  invoice(invoice_id: ID!): Invoice
+  
+  invoiceDraft(
+    account: AccountInput
+    notes: String
+    due_timestamp: Int
+    pending_items: [PendingInvoiceItemInput]
+    expected_invoicing_timestamp: Int
+    new_items: [InvoiceItemInput]
+    new_sales: [InvoiceSaleInput]
+  ): Invoice!
+  
+  invoiceForecasts(
+    limit: Int = 100
+    page: Int = 1
+    name: String
+    primary_location: PrimaryLocationInput
+  ): InvoicePagination!
+  
+  # 问题
+  issue(issue_id: ID!): Issue
+  
+  # 位置管理
+  locations(
+    organization_id: ID
+    organization_uuid: ID
+    limit: Int = 100
+    page: Int = 1
+    order: LocationOrder
+    include_visible: Boolean
+    include_deleted: Boolean
+    include_hidden: Boolean
+    location_id: [ID!]
+    name: String
+  ): LocationPagination!
+  
+  location(location_id: ID!): Location
+  
+  # 邮件提供商
+  mailProviders: [MailProvider!]
+  
+  # 成员管理
+  memberRemovePreview(member_id: ID!): ChangeInvoice!
+  
+  # 对话
+  conversations(
+    organization_id: ID
+    conversation_sequence_from: ID
+    conversation_sequence_up_to: ID
+    limit: Int
+    order: ConversationOrder = CONVERSATION_SEQUENCE_ASC
+    conversation_type: [ConversationType!]
+    include_joinable: [ConversationType!]
+    exclude_joined: [ConversationType!]
+    account_id: ID
+    search: String
+  ): ConversationsUpdate!
+  
+  conversation(
+    organization_id: ID
+    conversation_id: ID!
+    message_sequence_from: ID
+    limit: Int
+    attached_message_id: ID
+    mark_as_read: Boolean = false
+  ): ConversationUpdate!
+  
+  conversationItems(
+    conversation_id: ID!
+    attached_message_id: ID
+    created_timestamp_from: Int
+    created_timestamp_to: Int
+    limit: Int = 100
+    page: Int = 1
+    order: ConversationItemOrder = CREATED_TIMESTAMP_DESC
+  ): ConversationItemPagination!
+  
+  conversationUserSuggestions(
+    search: String
+    limit: Int = 100
+    page: Int = 1
+    include_forbidden_to_message: Boolean = false
+    include_admins_only: Boolean = false
+  ): UserProfilePagination!
+  
+  # 移动应用检查
+  mobileAppCheck(
+    user_id: ID
+    auth_token: String
+    member_id: ID
+    location_id: ID
+    organization_id: ID
+    device_id: String
+    app_platform: MobileAppPlatform
+    app_version: String
+    app_package_name: String
+    os_version: String
+  ): MobileAppCheckResponse!
+  
+  # 笔记
+  note(note_id: ID!): Note
+  
+  # 通知设置
+  notificationSettings: [NotificationSettings!]!
+  
+  # Optix 计费
+  optixBilling: OptixBilling
+  optixBillingPurchased(product: String!): Boolean!
+  optixSignupDraft: [OptixBillingPlan!]!
+  
+  # 可上线的组织
+  onboardableOrganizations(
+    longitude: String!
+    latitude: String!
+    limit: Int = 100
+    page: Int = 1
+  ): OrganizationPagination!
+  
+  # 可保留的支付方式
+  retainablePaymentMethods(
+    organization_id: ID
+    organization_uuid: ID
+    account: AccountInput
+  ): [RetainablePaymentMethodOption!]!
+  
+  # Stripe 支付方式
+  stripePaymentMethods(
+    organization_id: ID
+    organization_uuid: ID
+    search_after: ID
+  ): StripePaymentMethodsPagination
+  
+  # 计划模板
+  planTemplates(
+    limit: Int = 100
+    page: Int = 1
+    name: String
+    onboarding_enabled: Boolean
+    non_onboarding_enabled: Boolean
+    user_visibility: [UserVisibility!]
+    location_id: [ID!]
+    access: AccessSearchInput
+  ): PlanTemplatePagination!
+  
+  planTemplate(plan_template_id: ID!): PlanTemplate
+  
+  # 产品集合
+  productCollections(
+    limit: Int = 100
+    page: Int = 1
+    location_id: [ID!]
+    name: String
+    is_public: Boolean
+    type: [ProductType!] = [REGULAR]
+    order: ProductCollectionOrder
+  ): ProductCollectionPagination!
+  
+  productCollection(
+    product_collection_id: ID!
+    location_id: [ID!]
+  ): ProductCollection
+  
+  # 产品销售
+  productSales(
+    limit: Int = 100
+    page: Int = 1
+    location_id: [ID!]
+    product_name: String
+    product_tags: [String!]
+    label_id: [ID!]
+    account_id: ID
+    access_usage_account: AccountInput
+    account_name: String
+    search: String
+    invoice_status: [InvoiceStatus!]
+    created_timestamp_from: Int
+    created_timestamp_to: Int
+    include_canceled: Boolean
+    order: ProductSaleOrder = NUMBER_DESC
+    type: [ProductType!] = [REGULAR]
+    has_allowance_left: Boolean
+  ): ProductSalePagination!
+  
+  productSale(product_sale_id: ID!): ProductSale
+  
+  # 产品
+  products(
+    limit: Int = 100
+    page: Int = 1
+    name: String
+    location_id: [ID!]
+    label_id: [ID!]
+    tags: [String!]
+    onboarding_enabled: Boolean
+    non_onboarding_enabled: Boolean
+    user_visibility: [UserVisibility!]
+    type: [ProductType!] = [REGULAR]
+    access: AccessSearchInput
+    order: ProductOrder
+  ): ProductPagination!
+  
+  product(product_id: ID!): Product
+  
+  # 属性
+  properties(
+    limit: Int = 100
+    page: Int = 1
+    order: PropertyOrder = PREDEFINED_ORDER
+  ): PropertyPagination!
+  
+  property(property_id: ID!): Property!
+  propertyGroups: [PropertyGroup!]!
+  
+  # 用户档案
+  userProfile(
+    user_id: ID
+    member_id: ID
+  ): UserProfile
+  
+  teamProfile(team_id: ID!): TeamProfile
+  
+  # 重复规则
+  recurrenceDraft(input: RecurrenceDraftInput!): Recurrence!
+  
+  # 资源类型组
+  resourceTypeGroups(
+    limit: Int = 100
+    page: Int = 1
+    order: ResourceTypeGroupOrder = NAME_ASC
+    resource_type_group_id: [ID!]
+    resource_type_id: [ID!]
+    name: String
+  ): ResourceTypeGroupPagination!
+  
+  resourceTypeGroup(resource_type_group_id: ID!): ResourceTypeGroup
+  
+  # 资源类型
+  resourceTypes(
+    limit: Int = 100
+    page: Int = 1
+    order: ResourceTypeOrder = NAME_ASC
+    resource_type_id: [ID!]
+    name: String
+    booking_experience: [BookingExperience!]
+  ): ResourceTypePagination!
+  
+  resourceType(resource_type_id: ID!): ResourceType
+  
+  # 资源管理
+  resources(
+    limit: Int = 100
+    page: Int = 1
+    order: ResourceOrder
+    resource_id: [ID!]
+    location_id: [ID!]
+    is_bookable: Boolean
+    is_bookable_by_admins_only: Boolean
+    is_assignable: Boolean
+    name: String
+    include_connected_to_calendars: Boolean
+    title: String
+    resource_type_id: [ID!]
+    resource_type_group_id: [ID!]
+    capacity_from: Int
+  ): ResourcePagination!
+  
+  resource(resource_id: ID!): Resource
+  
+  # 资源可用性
+  resourceAvailability(
+    input: ResourceAvailabilityInput!
+    exclude_booking_id: ID
+    limit: Int
+    order: ResourceAvailabilityOrder = LOCATION_RATING_DESC
+  ): [ResourceAvailability!]!
+  
+  resourceAvailabilityGroups(
+    input: ResourceAvailabilityInput!
+    exclude_booking_id: Int
+    quantity: Int
+    quantity_from: Int
+    quantity_to: Int
+    group_capacity: Int
+    group_capacity_from: Int
+    group_capacity_to: Int
+    limit: Int
+    group_limit: Int
+    order: ResourceAvailabilityOrder = LOCATION_RATING_DESC
+  ): [ResourceAvailabilityGroup!]!
+  
+  # 日程安排
+  schedule(
+    type: [ScheduleEventType!]
+    start_timestamp_from: Int
+    start_timestamp_to: Int
+    end_timestamp_from: Int
+    end_timestamp_to: Int
+    resource: ResourceSearchInput
+    location_id: [ID!]
+    owner_account_id: [ID!]
+    payer_account_id: [ID!]
+    status: [ScheduleEventStatus!]
+    search: String
+    plan_id: [ID!]
+    source: [String!]
+    limit: Int = 100
+    page: Int = 1
+    order: ScheduleEventOrder
+  ): ScheduleEventPagination!
+  
+  scheduleConflicts(
+    location_id: [ID!]
+    resource_id: [ID!]
+    start_timestamp: Int
+    end_timestamp: Int
+    start_datetime: DateTime
+    end_datetime: DateTime
+    recurrence: RecurrenceInput
+    exclude_assignment_id: ID
+    exclude_availability_block_id: ID
+    exclude_booking_id: ID
+  ): ScheduleConflicts!
+  
+  # 任务
+  tasks(
+    limit: Int = 100
+    page: Int = 1
+    order: TaskOrder
+    search: TaskSearchInput
+  ): TaskPagination!
+  
+  task(task_id: ID!): Task
+  
+  # 团队
+  teams(
+    limit: Int = 100
+    page: Int = 1
+    order: TeamOrder
+  ): TeamPagination!
+  
+  teamRemovePreview(team_id: ID!): ChangeInvoice!
+  
+  # 参观
+  tours(
+    limit: Int = 100
+    page: Int
+    location_id: [ID!]
+  ): TourPagination!
+  
+  tour(tour_id: ID!): Tour
+  
+  # 用户管理
+  users(
+    limit: Int = 100
+    page: Int = 1
+    order: UserOrder
+    include_active: Boolean
+    include_inactive: Boolean
+    include_deleted: Boolean
+    include_pending: Boolean
+    search_by_email: String
+    search_by_name: String
+    search: String
+  ): UserPagination!
+  
+  user(
+    get_by_email: String
+    get_by_member_id: ID
+    get_by_user_id: ID
+  ): User
+  
+  userSources(include_suggestions: Boolean = false): [String!]
+  userPasswordStrength(password: String!): UserPasswordStrength!
+  userSignupDraft(
+    source: String = "User app"
+    plan: PlanSignupInput
+    product: ProductSaleInput
+    payment_method_type: String
+  ): UserSignupSummary!
+  
+  # 用户钱包访问模板
+  userWalletAccessTemplates(
+    limit: Int = 100
+    page: Int = 1
+    search_by_email: String
+  ): UserAccessPagination!
+  
+  # 账户钱包
+  accountWallets(
+    account: AccountInput
+    allowance_timestamp: Int
+    include_shared_wallets: Boolean = true
+  ): [Wallet!]!
+  
+  # Webhooks
+  webhooks(
+    client_id: String!
+    limit: Int = 100
+    page: Int = 1
+    type: WebhookType!
+  ): WebhookJobPagination!
+  
+  # 工作流
+  workflows(
+    limit: Int = 100
+    page: Int = 1
+    order: WorkflowOrder
+    search: WorkflowSearchInput
+  ): WorkflowPagination!
+  
+  workflow(workflow_id: ID!): Workflow
+  workflowAvailableSteps: [WorkflowStep!]!
+  
+  workflowEnrollments(
+    limit: Int = 100
+    page: Int = 1
+    order: WorkflowEnrollmentOrder
+    search: WorkflowEnrollmentSearchInput
+  ): WorkflowEnrollmentPagination!
+  
+  workflowRecipes(recipe_type: [WorkflowRecipeType!]): [WorkflowRecipe!]!
+  
+  workflowEmailDraft(
+    input: WorkflowActionEmailInput!
+    trigger_type: WorkflowTriggerType!
+  ): WorkflowEmailDraft!
+  
+  workflowDocDraft(
+    input: WorkflowActionDocToSignInput!
+    trigger_type: WorkflowTriggerType!
+  ): DocumentDraft!
+}
+
+# 基础类型定义
+type Pong {
+  message: String!
+}
+
+type AuthenticatedUser {
+  user: User
+  member: Member
+  organization: Organization
+}
+
+# [其他类型定义将继续添加...]
+# 注意：完整的类型定义会非常长，这里只包含主要的查询结构
