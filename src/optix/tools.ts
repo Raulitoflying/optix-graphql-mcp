@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { OPTIX_QUERIES, OPTIX_MUTATIONS } from "./queries.js";
+import { OPTIX_QUERIES } from "./queries.js";
 import type {
 	Booking,
 	Member,
@@ -145,6 +145,8 @@ export function createOptixTools(): Map<string, OptixTool> {
 		},
 	});
 
+	// 暂时禁用 mutation 工具
+	/*
 	tools.set("optix_create_booking", {
 		name: "optix_create_booking",
 		description: "Create a new booking for a member. This will reserve a resource for the specified time period.",
@@ -203,6 +205,7 @@ export function createOptixTools(): Map<string, OptixTool> {
 			};
 		},
 	});
+	*/
 
 	tools.set("optix_get_upcoming_bookings", {
 		name: "optix_get_upcoming_bookings",
@@ -304,6 +307,8 @@ export function createOptixTools(): Map<string, OptixTool> {
 		},
 	});
 
+	// 暂时禁用 create member mutation 工具
+	/*
 	tools.set("optix_create_member", {
 		name: "optix_create_member",
 		description: "Create a new member in your Optix workspace. You can optionally assign them to a membership plan immediately.",
@@ -341,6 +346,7 @@ export function createOptixTools(): Map<string, OptixTool> {
 			};
 		},
 	});
+	*/
 
 	// ==================== 资源管理工具 ====================
 
