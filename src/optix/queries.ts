@@ -1013,7 +1013,6 @@ export const OPTIX_MUTATIONS: {
 	CANCEL_BOOKING?: string;
 	CREATE_MEMBER?: string;
 	UPDATE_BOOKING?: string;
-	UPDATE_MEMBER?: string;
 } = {
 	CREATE_BOOKING: `
 		mutation CreateBooking($input: BookingSetInput!) {
@@ -1092,21 +1091,6 @@ export const OPTIX_MUTATIONS: {
 				is_lead
 				is_pending
 				user_since
-			}
-		}
-	`,
-
-	UPDATE_MEMBER: `
-		mutation UpdateMember(
-			$account: [AccountInput!]!
-			$input: AccountDetailsInput!
-		) {
-			accountsCommit(
-				account: $account
-				input: $input
-			) {
-				total
-				id
 			}
 		}
 	`,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Optix GraphQL MCP Server** - A Model Context Protocol (MCP) server that provides both generic GraphQL capabilities and specialized business tools for Optix workspace management APIs. The server automatically detects Optix endpoints and enables 15-18 business-specific tools for coworking spaces, flexible offices, and workspace booking systems.
+**Optix GraphQL MCP Server** - A Model Context Protocol (MCP) server that provides both generic GraphQL capabilities and specialized business tools for Optix workspace management APIs. The server automatically detects Optix endpoints and enables 15+ read-only tools plus 4 optional mutation tools for coworking spaces, flexible offices, and workspace booking systems.
 
 ## Architecture
 
@@ -24,14 +24,14 @@ The server operates in two modes based on endpoint detection ([src/index.ts:44](
   - Implements mutation safety checks (disabled by default)
 
 - **[src/optix/tools.ts](src/optix/tools.ts)** - Business tool definitions
-  - Creates 15 read-only tools (bookings, members, resources, analytics)
-  - Conditionally adds 3 mutation tools when `ALLOW_MUTATIONS=true`
+  - Creates 15+ read-only tools (bookings, members, resources, plans, locations, teams)
+  - Conditionally adds 4 mutation tools when `ALLOW_MUTATIONS=true`
   - Each tool includes description, Zod schema validation, and execution logic
   - Tools are registered as a Map<string, OptixTool>
 
 - **[src/optix/queries.ts](src/optix/queries.ts)** - GraphQL query/mutation templates
   - `OPTIX_QUERIES`: Read operations for all business tools
-  - `OPTIX_MUTATIONS`: Write operations (CREATE_BOOKING, CANCEL_BOOKING, CREATE_MEMBER)
+  - `OPTIX_MUTATIONS`: Write operations (CREATE_BOOKING, UPDATE_BOOKING, CANCEL_BOOKING, CREATE_MEMBER)
 
 - **[src/optix/types.ts](src/optix/types.ts)** - TypeScript type definitions
   - Complete type system for Optix entities (Booking, Member, Resource, etc.)
@@ -99,10 +99,12 @@ node test-business-tools.js
 # Test mutation mode (requires ALLOW_MUTATIONS=true)
 node test-mutation-mode.js
 
+# Test all business tools
+node test-all-business-tools.js
+
 # Test specific functionality
 node test-booking-fixes.js
 node test-pagination.js
-node test-account-direct.js
 ```
 
 ## Environment Configuration
@@ -119,10 +121,11 @@ Required environment variables ([src/index.ts:21-39](src/index.ts#L21)):
 
 By default, ALL mutations are disabled for safety. The server checks parsed GraphQL operations and blocks mutations unless `ALLOW_MUTATIONS=true` ([src/index.ts:135-149](src/index.ts#L135)).
 
-When enabled, three mutation tools become available:
-- `optix_create_booking`
-- `optix_cancel_booking`
-- `optix_create_member`
+When enabled, four mutation tools become available:
+- `optix_create_booking` - Create new bookings
+- `optix_update_booking` - Update booking time or resource
+- `optix_cancel_booking` - Cancel existing bookings
+- `optix_create_member` - Add new members or leads
 
 Each mutation tool validates that the corresponding GraphQL mutation exists in [src/optix/queries.ts](src/optix/queries.ts) before execution.
 

@@ -318,69 +318,6 @@ export function createOptixTools(): Map<string, OptixTool> {
 			},
 		});
 
-		tools.set("optix_update_member", {
-			name: "optix_update_member",
-			description: "Update an existing member's profile information including contact details, company info, and location assignment.",
-			inputSchema: z.object({
-				accountId: z.string().describe("The account ID to update"),
-				name: z.string().optional().describe("Updated name"),
-				email: z.string().email().optional().describe("Updated email address"),
-				phone: z.string().optional().describe("Updated phone number"),
-				company: z.string().optional().describe("Company name"),
-				title: z.string().optional().describe("Job title"),
-				profession: z.string().optional().describe("Profession"),
-				industry: z.string().optional().describe("Industry"),
-				description: z.string().optional().describe("Bio/description"),
-				city: z.string().optional().describe("City"),
-				country: z.string().optional().describe("Country"),
-				primary_location_id: z.string().optional().describe("Primary location ID"),
-			}),
-			execute: async (args, endpoint, headers) => {
-				if (!OPTIX_MUTATIONS.UPDATE_MEMBER) {
-					throw new Error("UPDATE_MEMBER mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
-				}
-
-				const { accountId, ...updateFields } = args;
-
-				// Build input object with only provided fields
-				const input: any = {};
-				for (const [key, value] of Object.entries(updateFields)) {
-					if (value !== undefined) {
-						input[key] = value;
-					}
-				}
-
-				const variables = {
-					account: [{ account_id: accountId }],
-					input: input,
-				};
-
-				const data = await executeGraphQL(OPTIX_MUTATIONS.UPDATE_MEMBER, variables, endpoint, headers);
-				const response = data.accountsCommit;
-
-				if (!response || response.total === 0) {
-					throw new Error("Member update failed: No accounts updated");
-				}
-
-				// Fetch the updated account details
-				const accountData = await executeGraphQL(
-					OPTIX_QUERIES.LIST_ACCOUNTS,
-					{ account_id: [accountId], limit: 1 },
-					endpoint,
-					headers
-				);
-
-				const account = accountData.accounts?.data?.[0];
-
-				return {
-					success: true,
-					updated_count: response.total,
-					account: account || { account_id: accountId },
-					message: "✅ Member updated successfully!",
-				};
-			},
-		});
-
 		tools.set("optix_update_booking", {
 			name: "optix_update_booking",
 			description: "Update an existing booking's time, resource, or other details. Can reschedule or modify booking information.",
