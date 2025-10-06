@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "optix": {
+      "command": "node",
+      "args": ["path/to/dist/index.js"],
+      "env": {
+        "ENDPOINT": "https://api.optixapp.com/graphql",
+        "HEADERS": "{\"Authorization\":\"Bearer YOUR_OPTIX_TOKEN\"}",
+        "ALLOW_MUTATIONS": "false"
+      }
+    }
+  },
+  
+  "// Configuration Notes": {
+    "ENDPOINT": "Optix GraphQL API endpoint (default: https://api.optixapp.com/graphql)",
+    "HEADERS": "JSON string with authorization header containing your Optix Organization Bearer token",
+    "ALLOW_MUTATIONS": "Set to 'true' to enable mutation tools (create/cancel bookings, create members). Default: 'false' for safety"
+  },
+  
+  "// Security Notice": "Mutation tools are disabled by default to prevent accidental data modification. Only enable ALLOW_MUTATIONS=true if you need write operations and understand the risks."
+}

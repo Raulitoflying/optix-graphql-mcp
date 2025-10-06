@@ -5,7 +5,7 @@
  * These types help ensure type safety when working with Optix data.
  */
 
-// ==================== 基础类型 ====================
+// ==================== Base Types ====================
 
 export interface OptixEntity {
 	id: string;
@@ -13,7 +13,7 @@ export interface OptixEntity {
 	updatedAt?: string;
 }
 
-// ==================== 预订相关类型 ====================
+// ==================== Booking Related Types ====================
 
 export interface Booking extends OptixEntity {
 	start: string;
@@ -59,7 +59,7 @@ export interface BookingConflict {
 	};
 }
 
-// ==================== 成员相关类型 ====================
+// ==================== Member Related Types ====================
 
 export interface Member extends OptixEntity {
 	name: string;
@@ -90,7 +90,7 @@ export interface MemberUpdateInput {
 	status?: MemberStatus;
 }
 
-// ==================== 计划相关类型 ====================
+// ==================== Plan Related Types ====================
 
 export interface MembershipPlan extends OptixEntity {
 	template: PlanTemplate;
@@ -147,7 +147,7 @@ export interface PlanRestrictions {
 	blackoutDates?: string[];
 }
 
-// ==================== 资源相关类型 ====================
+// ==================== Resource Related Types ====================
 
 export interface Resource extends OptixEntity {
 	name: string;
@@ -227,7 +227,7 @@ export interface TimeSlotAvailability {
 	};
 }
 
-// ==================== 组织相关类型 ====================
+// ==================== Organization Related Types ====================
 
 export interface Organization extends OptixEntity {
 	name: string;
@@ -283,7 +283,7 @@ export interface SubscriptionLimits {
 	storageGB: number;
 }
 
-// ==================== 统计和报告类型 ====================
+// ==================== Statistics & Reporting Types ====================
 
 export interface BookingStats {
 	totalBookings: number;
@@ -329,7 +329,7 @@ export interface TopMember {
 	totalSpent: number;
 }
 
-// ==================== API 响应类型 ====================
+// ==================== API Response Types ====================
 
 export interface OptixResponse<T> {
 	data?: T;
@@ -372,7 +372,7 @@ export interface AssignPlanResponse {
 	errors?: string[];
 }
 
-// ==================== 工具参数类型 ====================
+// ==================== Tool Parameter Types ====================
 
 export interface ListBookingsArgs {
 	from?: string;
@@ -411,7 +411,7 @@ export interface GetBookingStatsArgs {
 	memberIds?: string[];
 }
 
-// ==================== 实时更新类型 ====================
+// ==================== Real-time Update Types ====================
 
 export interface BookingUpdate {
 	type: 'created' | 'updated' | 'cancelled' | 'confirmed';

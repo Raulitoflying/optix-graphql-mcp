@@ -1,29 +1,23 @@
 /**
  * Optix GraphQL Query Templates
  * 
- * 基于真实的 Optix API Schema 更新的查询模板
- * Schema 来源: https://api.optixapp.com/graphql
+ * Query templates updated based on real Optix API Schema
+ * Schema source: https://api.optixapp.com/graphql
  */
 
 export const OPTIX_QUERIES = {
-	// ==================== 组织和用户信息 ====================
+	// ==================== Organization & User Information ====================
 	
 	GET_ORGANIZATION_INFO: `
 		query GetOrganizationInfo {
 			me {
+				authType
 				user {
 					user_id
 					name
 					email
-					first_name
-					last_name
-					status
-				}
-				member {
-					member_id
-					status
-					is_admin
-					primary_location_id
+					fullname
+					surname
 				}
 				organization {
 					organization_id
@@ -31,12 +25,9 @@ export const OPTIX_QUERIES = {
 					subdomain
 					timezone
 					currency
-					primary_location {
-						location_id
-						name
-						address
-						timezone
-					}
+					address
+					city
+					country
 				}
 			}
 		}
@@ -67,14 +58,12 @@ export const OPTIX_QUERIES = {
 					phone
 					status
 					created_timestamp
-					primary_location_id
+					primary_location {
+						location_id
+						name
+					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -104,12 +93,7 @@ export const OPTIX_QUERIES = {
 					status
 					is_primary
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -139,7 +123,7 @@ export const OPTIX_QUERIES = {
 					capacity
 					is_bookable
 					is_assignable
-					resource_type {
+					type {
 						resource_type_id
 						name
 						booking_experience
@@ -149,12 +133,7 @@ export const OPTIX_QUERIES = {
 						name
 					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -176,28 +155,23 @@ export const OPTIX_QUERIES = {
 					plan_template_id
 					name
 					description
-					frequency
-					billing_start
-					price {
-						amount
-						currency
-					}
-					location_visibility {
+					price_frequency
+					allowance_renewal_frequency
+					price
+					deposit
+					set_up_fee
+					in_all_locations
+					locations {
 						location_id
 						name
 					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
 
-	// ==================== 预订相关查询 ====================
+	// ==================== Booking Related Queries ====================
 	
 	LIST_BOOKINGS: `
 		query ListBookings(
@@ -226,15 +200,85 @@ export const OPTIX_QUERIES = {
 			) {
 				data {
 					booking_id
+					title
+					notes
 					start_timestamp
 					end_timestamp
-					status
-					notes
 					created_timestamp
-					owner_account {
+					is_new
+					is_approved
+					is_canceled
+					is_rejected
+					account {
 						account_id
 						name
 						type
+						email
+					}
+					resource {
+						resource_id
+						name
+						title
+						location {
+							location_id
+							name
+						}
+					}
+					payment {
+						unit_amount
+					}
+					user {
+						user_id
+						name
+						email
+					}
+					created_by_user {
+						user_id
+						name
+						email
+					}
+				}
+				total
+			}
+		}
+	`,
+
+	GET_UPCOMING_SCHEDULE: `
+		query GetUpcomingSchedule(
+			$limit: Int = 100
+			$end_timestamp_from: Int
+			$start_timestamp_to: Int
+			$status: [ScheduleEventStatus!]
+		) {
+			schedule(
+				limit: $limit
+				end_timestamp_from: $end_timestamp_from
+				start_timestamp_to: $start_timestamp_to
+				status: $status
+			) {
+				data {
+					type
+					booking_id
+					assignment_id
+					tour_id
+					availability_block_id
+					title
+					start_timestamp
+					end_timestamp
+					status
+					is_recurring
+					resource {
+						resource_id
+						name
+						title
+					}
+					location {
+						location_id
+						name
+					}
+					owner_account {
+						account_id
+						name
 						email
 					}
 					payer_account {
@@ -242,74 +286,11 @@ export const OPTIX_QUERIES = {
 						name
 						email
 					}
-					resource {
-						resource_id
-						name
-						title
-						resource_type {
-							name
-						}
-						location {
-							location_id
-							name
-						}
-					}
-					booking_cost {
-						total_cost
-						currency
-					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
-	`,
-
-	GET_UPCOMING_BOOKINGS: `
-		query GetUpcomingBookings(
-			$limit: Int = 50
-			$start_timestamp_from: Int
-		) {
-			bookings(
-				limit: $limit
-				start_timestamp_from: $start_timestamp_from
-				include_new: true
-				include_approved: true
-				order: START_TIMESTAMP_ASC
-			) {
-				data {
-					booking_id
-					start_timestamp
-					end_timestamp
-					status
-					owner_account {
-						account_id
-						name
-						email
-					}
-					resource {
-						resource_id
-						name
-						title
-						location {
-							location_id
-							name
-						}
-					}
-				}
-				pagination {
-					total
-					has_next_page
-				}
-			}
-		}
-	`,
-
-	CHECK_AVAILABILITY: `
+	`,	CHECK_AVAILABILITY: `
 		query CheckAvailability(
 			$resource_id: [ID!]!
 			$start_timestamp: Int!
@@ -338,7 +319,9 @@ export const OPTIX_QUERIES = {
 					booking_id
 					start_timestamp
 					end_timestamp
-					status
+					is_approved
+					is_canceled
+					is_rejected
 					resource {
 						resource_id
 					}
@@ -351,22 +334,27 @@ export const OPTIX_QUERIES = {
 		query GetBooking($booking_id: ID!) {
 			booking(booking_id: $booking_id) {
 				booking_id
+				title
+				notes
 				start_timestamp
 				end_timestamp
-				status
-				notes
 				created_timestamp
-				owner_account {
+				ended_timestamp
+				is_new
+				is_approved
+				is_canceled
+				is_rejected
+				is_recurring
+				is_recurrence_exception
+				is_hidden
+				external_id
+				source
+				account {
 					account_id
 					name
 					type
 					email
 					phone
-				}
-				payer_account {
-					account_id
-					name
-					email
 				}
 				resource {
 					resource_id
@@ -374,35 +362,45 @@ export const OPTIX_QUERIES = {
 					title
 					description
 					capacity
-					resource_type {
-						resource_type_id
-						name
-						booking_experience
-					}
 					location {
 						location_id
 						name
 						address
 					}
 				}
-				booking_cost {
-					total_cost
-					currency
-					breakdown {
-						description
-						amount
-					}
+				payment {
+					unit_amount
+					total
+					price_description
+					tax_rate
+					tax
+					unlimited_allowance
+				}
+				user {
+					user_id
+					name
+					email
+				}
+				created_by_user {
+					user_id
+					name
+					email
 				}
 				invitees {
-					status
 					email
 					name
+				}
+				web_link
+				online_meeting {
+					meeting_id
+					join_url
+					platform
 				}
 			}
 		}
 	`,
 
-	// ==================== 搜索和过滤查询 ====================
+	// ==================== Search & Filter Queries ====================
 	
 	SEARCH_ACCOUNTS: `
 		query SearchAccounts(
@@ -421,7 +419,10 @@ export const OPTIX_QUERIES = {
 					type
 					email
 					status
-					primary_location_id
+					primary_location {
+						location_id
+						name
+					}
 				}
 				pagination {
 					total
@@ -457,9 +458,7 @@ export const OPTIX_QUERIES = {
 						name
 					}
 				}
-				pagination {
-					total
-				}
+				total
 			}
 		}
 	`,
@@ -502,15 +501,12 @@ export const OPTIX_QUERIES = {
 						}
 					}
 				}
-				pagination {
-					total
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
 
-	// ==================== 详细信息查询 ====================
+	// ==================== Detailed Information Queries ====================
 	
 	GET_ACCOUNT_DETAILS: `
 		query GetAccountDetails($account: AccountInput!) {
@@ -522,7 +518,10 @@ export const OPTIX_QUERIES = {
 				phone
 				status
 				created_timestamp
-				primary_location_id
+				primary_location {
+					location_id
+					name
+				}
 				properties {
 					property_id
 					value
@@ -585,7 +584,7 @@ export const OPTIX_QUERIES = {
 				capacity
 				is_bookable
 				is_assignable
-				resource_type {
+				type {
 					resource_type_id
 					name
 					booking_experience
@@ -618,20 +617,22 @@ export const OPTIX_QUERIES = {
 					booking_id
 					start_timestamp
 					end_timestamp
-					status
-					owner_account {
+					is_approved
+					is_canceled
+					is_rejected
+					account {
 						account_id
 						name
 					}
 				}
 			}
 			schedule(
-				resource_id: [$resource_id]
+				resource: { resource_id: [$resource_id] }
 				start_timestamp_from: $start_timestamp_from
 				start_timestamp_to: $start_timestamp_to
 			) {
 				data {
-					event_id
+					booking_id
 					type
 					start_timestamp
 					end_timestamp
@@ -648,25 +649,21 @@ export const OPTIX_QUERIES = {
 				plan_template_id
 				name
 				description
-				frequency
-				billing_start
-				price {
-					amount
-					currency
-				}
-				location_visibility {
+				price_frequency
+				allowance_renewal_frequency
+				price
+				deposit
+				set_up_fee
+				in_all_locations
+				locations {
 					location_id
 					name
-				}
-				properties {
-					property_id
-					value
 				}
 			}
 		}
 	`,
 
-	// ==================== 分析和统计查询 ====================
+	// ==================== Analytics & Statistics Queries ====================
 	
 	GET_ANALYTICS_SUMMARY: `
 		query GetAnalyticsSummary($query: AnalyticsQueryInput!) {
@@ -695,14 +692,18 @@ export const OPTIX_QUERIES = {
 				start_timestamp_to: $start_timestamp_to
 				location_id: $location_id
 				limit: 1000
+				include_new: true
+				include_approved: true
 			) {
 				data {
 					booking_id
-					status
+					is_approved
+					is_canceled
+					is_rejected
 					start_timestamp
 					end_timestamp
-					booking_cost {
-						total_cost
+					cost {
+						total_amount
 						currency
 					}
 					resource {
@@ -714,32 +715,27 @@ export const OPTIX_QUERIES = {
 						}
 					}
 				}
-				pagination {
-					total
-				}
+				total
 			}
 		}
 	`,
 
 	GET_MEMBER_STATS: `
 		query GetMemberStats {
-			accounts(type: ["member"], limit: 1000) {
+			accounts(limit: 1000) {
 				data {
 					account_id
 					name
 					type
 					status
 					created_timestamp
-					primary_location_id
 				}
-				pagination {
-					total
-				}
+				total
 			}
 		}
 	`,
 
-	// ==================== 团队和权限查询 ====================
+	// ==================== Team & Permissions Queries ====================
 	
 	LIST_TEAMS: `
 		query ListTeams(
@@ -756,14 +752,12 @@ export const OPTIX_QUERIES = {
 					description
 					created_timestamp
 					member_count
-					primary_location_id
+					primary_location {
+						location_id
+						name
+					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -773,11 +767,9 @@ export const OPTIX_QUERIES = {
 			$limit: Int = 100
 			$page: Int = 1
 			$search: String
-			$location_id: [ID!]
-			$team_id: [ID!]
 		) {
 			accounts(
-				type: ["member"]
+				type: ["Member"]
 				limit: $limit
 				page: $page
 				search: $search
@@ -789,14 +781,8 @@ export const OPTIX_QUERIES = {
 					phone
 					status
 					created_timestamp
-					primary_location_id
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -807,25 +793,57 @@ export const OPTIX_QUERIES = {
 				account_id
 				name
 				type
+				type_label {
+					label_id
+					name
+					type
+					color
+				}
 				email
 				phone
 				status
 				created_timestamp
-				primary_location_id
-				properties {
-					property_id
-					value
+				company
+				title
+				profession
+				industry
+				description
+				skills
+				city
+				country
+				website
+				linkedin
+				twitter
+				avatar {
+					name
+					url
+					mime
+					size
+					width
+					height
 				}
-				plans {
-					account_plan_id
-					plan_template {
+				source
+				is_checked_in
+				primary_location {
+					location_id
+					name
+					address
+					city
+					country
+				}
+				notes {
+					note_id
+					note
+					created_timestamp
+					created_by_user {
+						user_id
 						name
-						description
 					}
-					status
-					start_timestamp
-					end_timestamp
 				}
+				additional_notification_emails
+				enable_autopayments
+				require_payment_method
+				next_invoicing_timestamp
 			}
 		}
 	`,
@@ -836,7 +854,7 @@ export const OPTIX_QUERIES = {
 			$limit: Int = 20
 		) {
 			accounts(
-				type: ["member"]
+				type: ["Member"]
 				search: $search
 				limit: $limit
 			) {
@@ -845,11 +863,8 @@ export const OPTIX_QUERIES = {
 					name
 					email
 					status
-					primary_location_id
 				}
-				pagination {
-					total
-				}
+				total
 			}
 		}
 	`,
@@ -861,7 +876,10 @@ export const OPTIX_QUERIES = {
 				name
 				description
 				created_timestamp
-				primary_location_id
+				primary_location {
+					location_id
+					name
+				}
 				members {
 					account_id
 					name
@@ -905,7 +923,7 @@ export const OPTIX_QUERIES = {
 		}
 	`,
 
-	// ==================== 活动和事件查询 ====================
+	// ==================== Activity & Event Queries ====================
 	
 	LIST_EVENTS: `
 		query ListEvents(
@@ -945,12 +963,7 @@ export const OPTIX_QUERIES = {
 						name
 					}
 				}
-				pagination {
-					total
-					page
-					limit
-					has_next_page
-				}
+				total
 			}
 		}
 	`,
@@ -994,12 +1007,131 @@ export const OPTIX_QUERIES = {
 	`
 };
 
-// 导出 mutations（暂时为空，可以以后添加）
-export const OPTIX_MUTATIONS = {
-	// 等待真实 Schema 中的 mutation 定义
-	// CREATE_BOOKING: `...`,
-	// CANCEL_BOOKING: `...`,
-	// CREATE_MEMBER: `...`,
-	// UPDATE_BOOKING: `...`,
-	// UPDATE_ACCOUNT: `...`,
+// Export mutations (temporarily empty, can be added later)
+export const OPTIX_MUTATIONS: {
+	CREATE_BOOKING?: string;
+	CANCEL_BOOKING?: string;
+	CREATE_MEMBER?: string;
+	UPDATE_BOOKING?: string;
+	UPDATE_MEMBER?: string;
+} = {
+	CREATE_BOOKING: `
+		mutation CreateBooking($input: BookingSetInput!) {
+			bookingsCommit(input: $input) {
+				booking_session_id
+				account {
+					account_id
+					name
+					email
+				}
+				bookings {
+					booking_id
+					title
+					notes
+					start_timestamp
+					end_timestamp
+					is_confirmed
+					is_canceled
+					is_recurring
+					resource_id
+					resources {
+						resource_id
+						name
+						title
+					}
+				}
+			}
+		}
+	`,
+
+	CANCEL_BOOKING: `
+		mutation CancelBooking($booking_id: ID!) {
+			bookingsCommit(input: {
+				bookings: [{
+					booking_id: $booking_id
+					is_canceled: true
+				}]
+			}) {
+				bookings {
+					booking_id
+					is_canceled
+					title
+					start_timestamp
+					end_timestamp
+				}
+			}
+		}
+	`,
+
+	CREATE_MEMBER: `
+		mutation CreateMember(
+			$email: String!
+			$name: String
+			$surname: String
+			$phone: String
+			$notify_user_by_email: Boolean
+			$primary_location_id: ID
+			$is_lead: Boolean
+		) {
+			userCreate(
+				email: $email
+				name: $name
+				surname: $surname
+				phone: $phone
+				notify_user_by_email: $notify_user_by_email
+				primary_location_id: $primary_location_id
+				is_lead: $is_lead
+			) {
+				user_id
+				name
+				surname
+				fullname
+				email
+				phone
+				is_active
+				is_lead
+				is_pending
+				user_since
+			}
+		}
+	`,
+
+	UPDATE_MEMBER: `
+		mutation UpdateMember(
+			$account: [AccountInput!]!
+			$input: AccountDetailsInput!
+		) {
+			accountsCommit(
+				account: $account
+				input: $input
+			) {
+				total
+				id
+			}
+		}
+	`,
+
+	UPDATE_BOOKING: `
+		mutation UpdateBooking($input: BookingSetInput!) {
+			bookingsCommit(input: $input) {
+				booking_session_id
+				bookings {
+					booking_id
+					title
+					notes
+					start_timestamp
+					end_timestamp
+					is_confirmed
+					is_canceled
+					is_recurring
+					resource_id
+					resources {
+						resource_id
+						name
+						title
+					}
+				}
+			}
+		}
+	`,
 };

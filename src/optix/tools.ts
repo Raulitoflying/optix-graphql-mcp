@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { OPTIX_QUERIES } from "./queries.js";
+import { OPTIX_QUERIES, OPTIX_MUTATIONS } from "./queries.js";
 import type {
 	Booking,
 	Member,
@@ -72,8 +72,11 @@ async function executeGraphQL(
  */
 export function createOptixTools(): Map<string, OptixTool> {
 	const tools = new Map<string, OptixTool>();
+	
+	// Check if mutations are allowed via environment variable
+	const allowMutations = process.env.ALLOW_MUTATIONS === "true";
 
-	// ==================== 预订管理工具 ====================
+	// ==================== Booking Management Tools ====================
 
 	tools.set("optix_list_bookings", {
 		name: "optix_list_bookings",
@@ -88,11 +91,14 @@ export function createOptixTools(): Map<string, OptixTool> {
 		}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.LIST_BOOKINGS, args, endpoint, headers);
+			const bookings = data.bookings.data || [];
 			return {
-				bookings: data.bookings,
+				bookings: bookings,
+				total: data.bookings.total || bookings.length,
 				summary: {
-					total: data.bookings.length,
-					byStatus: data.bookings.reduce((acc: any, booking: Booking) => {
+					returned: bookings.length,
+					total: data.bookings.total || bookings.length,
+					byStatus: bookings.reduce((acc: any, booking: any) => {
 						acc[booking.status] = (acc[booking.status] || 0) + 1;
 						return acc;
 					}, {}),
@@ -108,133 +114,366 @@ export function createOptixTools(): Map<string, OptixTool> {
 			id: z.string().describe("The booking ID"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_BOOKING, args, endpoint, headers);
+			const variables = { booking_id: args.id };
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_BOOKING, variables, endpoint, headers);
 			return data.booking;
 		},
 	});
 
 	tools.set("optix_check_availability", {
 		name: "optix_check_availability",
-		description: "Check if a resource (meeting room, desk, etc.) is available for a specific time period. Shows any conflicting bookings and suggests alternative times if needed.",
+		description: "Check if a resource (meeting room, desk, etc.) is available for a specific time period. Shows any conflicting bookings and suggests alternative times if needed. If start/end not provided, checks next 7 days.",
 		inputSchema: z.object({
 			resourceId: z.string().describe("The resource/space ID to check"),
-			start: z.string().describe("Start time in ISO 8601 format (e.g., '2025-09-29T14:00:00Z')"),
-			end: z.string().describe("End time in ISO 8601 format (e.g., '2025-09-29T16:00:00Z')"),
+			start: z.string().optional().describe("Start time in ISO 8601 format (e.g., '2025-09-29T14:00:00Z'). Defaults to now."),
+			end: z.string().optional().describe("End time in ISO 8601 format (e.g., '2025-09-29T16:00:00Z'). Defaults to 7 days from start."),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.CHECK_AVAILABILITY, args, endpoint, headers);
-			const resource = data.resource;
-			const availability = resource.availability;
+			// Use defaults if start/end not provided
+			const now = new Date();
+			const startDate = args.start ? new Date(args.start) : now;
+			const endDate = args.end ? new Date(args.end) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+			// Convert ISO dates to Unix timestamps and resourceId to array
+			const variables = {
+				resource_id: [args.resourceId],
+				start_timestamp: Math.floor(startDate.getTime() / 1000),
+				end_timestamp: Math.floor(endDate.getTime() / 1000),
+			};
+
+			const data = await executeGraphQL(OPTIX_QUERIES.CHECK_AVAILABILITY, variables, endpoint, headers);
+			const resources = data.resources?.data || [];
+			const bookings = data.bookings?.data || [];
+
+			const resource = resources[0];
+			const conflictingBookings = bookings.filter((b: any) =>
+				b.is_approved && !b.is_canceled && !b.is_rejected
+			);
 
 			return {
-				resource: {
-					id: resource.id,
-					name: resource.name,
-					type: resource.type,
-				},
+				resource: resource ? {
+					id: resource.resource_id,
+					name: resource.name || resource.title,
+					isBookable: resource.is_bookable,
+				} : null,
 				timeSlot: {
-					start: args.start,
-					end: args.end,
+					start: startDate.toISOString(),
+					end: endDate.toISOString(),
+					duration: `${Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days`,
 				},
-				available: availability.available,
-				conflicts: availability.conflicts,
-				recommendation: availability.available 
+				available: conflictingBookings.length === 0,
+				conflicts: conflictingBookings.map((b: any) => ({
+					booking_id: b.booking_id,
+					start_timestamp: b.start_timestamp,
+					end_timestamp: b.end_timestamp,
+				})),
+				totalConflicts: conflictingBookings.length,
+				recommendation: conflictingBookings.length === 0
 					? "✅ Resource is available for the requested time"
-					: `❌ Resource is not available. ${availability.conflicts.length} conflicting booking(s) found.`,
+					: `❌ Resource is not available. ${conflictingBookings.length} conflicting booking(s) found.`,
 			};
 		},
 	});
 
-	// 暂时禁用 mutation 工具
-	/*
-	tools.set("optix_create_booking", {
-		name: "optix_create_booking",
-		description: "Create a new booking for a member. This will reserve a resource for the specified time period.",
+	// ==================== Mutation Tools (conditionally enabled) ====================
+	
+	if (allowMutations) {
+		tools.set("optix_create_booking", {
+			name: "optix_create_booking",
+			description: "Create a new booking for a member. This will reserve a resource for the specified time period.",
+			inputSchema: z.object({
+				accountId: z.string().describe("The account ID making the booking"),
+				resourceId: z.string().describe("The resource/space ID to book"),
+				start: z.string().describe("Booking start time in ISO 8601 format (e.g., '2025-10-06T14:00:00Z')"),
+				end: z.string().describe("Booking end time in ISO 8601 format (e.g., '2025-10-06T16:00:00Z')"),
+				title: z.string().optional().describe("Optional booking title"),
+				notes: z.string().optional().describe("Optional notes for the booking"),
+			}),
+			execute: async (args, endpoint, headers) => {
+				// Check if CREATE_BOOKING mutation is defined
+				if (!OPTIX_MUTATIONS.CREATE_BOOKING) {
+					throw new Error("CREATE_BOOKING mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
+				}
+
+				// Convert ISO dates to Unix timestamps
+				const startTimestamp = Math.floor(new Date(args.start).getTime() / 1000);
+				const endTimestamp = Math.floor(new Date(args.end).getTime() / 1000);
+
+				// Build Optix API BookingSetInput format
+				const input = {
+					account: {
+						account_id: args.accountId
+					},
+					title: args.title || "",
+					notes: args.notes || "",
+					bookings: [{
+						resource_id: [args.resourceId],
+						start_timestamp: startTimestamp,
+						end_timestamp: endTimestamp,
+					}]
+				};
+
+				const data = await executeGraphQL(OPTIX_MUTATIONS.CREATE_BOOKING, { input }, endpoint, headers);
+				const response = data.bookingsCommit;
+
+				const booking = response.bookings?.[0];
+
+				if (!booking) {
+					throw new Error("Booking creation failed: No booking returned");
+				}
+
+				return {
+					booking: booking,
+					account: response.account,
+					booking_session_id: response.booking_session_id,
+					status: booking.is_confirmed
+						? "✅ Booking confirmed!"
+						: "⏳ Booking created and may require approval",
+				};
+			},
+		});
+
+		tools.set("optix_cancel_booking", {
+			name: "optix_cancel_booking",
+			description: "Cancel an existing booking. This will free up the resource for other members to book.",
+			inputSchema: z.object({
+				bookingId: z.string().describe("The booking ID to cancel"),
+			}),
+			execute: async (args, endpoint, headers) => {
+				// Check if CANCEL_BOOKING mutation is defined
+				if (!OPTIX_MUTATIONS.CANCEL_BOOKING) {
+					throw new Error("CANCEL_BOOKING mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
+				}
+
+				const data = await executeGraphQL(OPTIX_MUTATIONS.CANCEL_BOOKING, { booking_id: args.bookingId }, endpoint, headers);
+				const response = data.bookingsCommit;
+
+				const booking = response.bookings?.[0];
+
+				if (!booking) {
+					throw new Error("Cancellation failed: No booking returned");
+				}
+
+				return {
+					success: true,
+					booking: booking,
+					message: booking.is_canceled ? "✅ Booking cancelled successfully" : "⚠️ Booking cancellation status unclear",
+				};
+			},
+		});
+
+		tools.set("optix_create_member", {
+			name: "optix_create_member",
+			description: "Create a new member/user in your Optix workspace. The email must be unique. Optionally mark as lead for sales follow-up.",
+			inputSchema: z.object({
+				email: z.string().email().describe("Email address (required, must be unique)"),
+				name: z.string().optional().describe("First name of the new member"),
+				surname: z.string().optional().describe("Last name/surname of the new member"),
+				phone: z.string().optional().describe("Phone number"),
+				notify_user_by_email: z.boolean().optional().describe("Send welcome email to user (default: false)"),
+				primary_location_id: z.string().optional().describe("Primary location ID to assign the member to"),
+				is_lead: z.boolean().optional().describe("Mark as lead for sales follow-up (default: false)"),
+			}),
+			execute: async (args, endpoint, headers) => {
+				// Check if CREATE_MEMBER mutation is defined
+				if (!OPTIX_MUTATIONS.CREATE_MEMBER) {
+					throw new Error("CREATE_MEMBER mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
+				}
+
+				const variables = {
+					email: args.email,
+					name: args.name,
+					surname: args.surname,
+					phone: args.phone,
+					notify_user_by_email: args.notify_user_by_email,
+					primary_location_id: args.primary_location_id,
+					is_lead: args.is_lead,
+				};
+
+				const data = await executeGraphQL(OPTIX_MUTATIONS.CREATE_MEMBER, variables, endpoint, headers);
+				const user = data.userCreate;
+
+				if (!user || !user.user_id) {
+					throw new Error("Member creation failed: No user returned");
+				}
+
+				return {
+					success: true,
+					user: {
+						user_id: user.user_id,
+						email: user.email,
+						name: user.name,
+						surname: user.surname,
+						fullname: user.fullname,
+						phone: user.phone,
+						is_active: user.is_active,
+						is_lead: user.is_lead,
+						is_pending: user.is_pending,
+						user_since: user.user_since,
+					},
+					message: user.is_lead
+						? "✅ Lead created successfully! Follow up to convert to member."
+						: "✅ Member created successfully!",
+				};
+			},
+		});
+
+		tools.set("optix_update_member", {
+			name: "optix_update_member",
+			description: "Update an existing member's profile information including contact details, company info, and location assignment.",
+			inputSchema: z.object({
+				accountId: z.string().describe("The account ID to update"),
+				name: z.string().optional().describe("Updated name"),
+				email: z.string().email().optional().describe("Updated email address"),
+				phone: z.string().optional().describe("Updated phone number"),
+				company: z.string().optional().describe("Company name"),
+				title: z.string().optional().describe("Job title"),
+				profession: z.string().optional().describe("Profession"),
+				industry: z.string().optional().describe("Industry"),
+				description: z.string().optional().describe("Bio/description"),
+				city: z.string().optional().describe("City"),
+				country: z.string().optional().describe("Country"),
+				primary_location_id: z.string().optional().describe("Primary location ID"),
+			}),
+			execute: async (args, endpoint, headers) => {
+				if (!OPTIX_MUTATIONS.UPDATE_MEMBER) {
+					throw new Error("UPDATE_MEMBER mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
+				}
+
+				const { accountId, ...updateFields } = args;
+
+				// Build input object with only provided fields
+				const input: any = {};
+				for (const [key, value] of Object.entries(updateFields)) {
+					if (value !== undefined) {
+						input[key] = value;
+					}
+				}
+
+				const variables = {
+					account: [{ account_id: accountId }],
+					input: input,
+				};
+
+				const data = await executeGraphQL(OPTIX_MUTATIONS.UPDATE_MEMBER, variables, endpoint, headers);
+				const response = data.accountsCommit;
+
+				if (!response || response.total === 0) {
+					throw new Error("Member update failed: No accounts updated");
+				}
+
+				// Fetch the updated account details
+				const accountData = await executeGraphQL(
+					OPTIX_QUERIES.LIST_ACCOUNTS,
+					{ account_id: [accountId], limit: 1 },
+					endpoint,
+					headers
+				);
+
+				const account = accountData.accounts?.data?.[0];
+
+				return {
+					success: true,
+					updated_count: response.total,
+					account: account || { account_id: accountId },
+					message: "✅ Member updated successfully!",
+				};
+			},
+		});
+
+		tools.set("optix_update_booking", {
+			name: "optix_update_booking",
+			description: "Update an existing booking's time, resource, or other details. Can reschedule or modify booking information.",
+			inputSchema: z.object({
+				bookingId: z.string().describe("The booking ID to update"),
+				start: z.string().optional().describe("New start time in ISO 8601 format"),
+				end: z.string().optional().describe("New end time in ISO 8601 format"),
+				resourceId: z.string().optional().describe("New resource/space ID (for moving booking)"),
+				title: z.string().optional().describe("Updated title"),
+				notes: z.string().optional().describe("Updated notes"),
+			}),
+			execute: async (args, endpoint, headers) => {
+				if (!OPTIX_MUTATIONS.UPDATE_BOOKING) {
+					throw new Error("UPDATE_BOOKING mutation is not defined. Please add the mutation schema to OPTIX_MUTATIONS in queries.ts");
+				}
+
+				// Build booking update object
+				const bookingUpdate: any = {
+					booking_id: args.bookingId,
+				};
+
+				if (args.start) {
+					bookingUpdate.start_timestamp = Math.floor(new Date(args.start).getTime() / 1000);
+				}
+				if (args.end) {
+					bookingUpdate.end_timestamp = Math.floor(new Date(args.end).getTime() / 1000);
+				}
+				if (args.resourceId) {
+					bookingUpdate.resource_id = [args.resourceId];
+				}
+
+				const input = {
+					title: args.title || "",
+					notes: args.notes || "",
+					bookings: [bookingUpdate],
+				};
+
+				const data = await executeGraphQL(OPTIX_MUTATIONS.UPDATE_BOOKING, { input }, endpoint, headers);
+				const response = data.bookingsCommit;
+				const booking = response.bookings?.[0];
+
+				if (!booking) {
+					throw new Error("Booking update failed: No booking returned");
+				}
+
+				return {
+					success: true,
+					booking: booking,
+					message: "✅ Booking updated successfully!",
+				};
+			},
+		});
+	}
+
+	tools.set("optix_get_upcoming_schedule", {
+		name: "optix_get_upcoming_schedule",
+		description: "Get upcoming schedule events including bookings, assignments, availability blocks, and tours. Perfect for viewing complete daily schedules and planning. Returns all active and upcoming events.",
 		inputSchema: z.object({
-			memberId: z.string().describe("The member ID making the booking"),
-			resourceId: z.string().describe("The resource/space ID to book"),
-			start: z.string().describe("Booking start time in ISO 8601 format"),
-			end: z.string().describe("Booking end time in ISO 8601 format"),
-			notes: z.string().optional().describe("Optional notes for the booking"),
-			requireApproval: z.boolean().default(false).describe("Whether this booking requires admin approval"),
+			days: z.number().min(1).max(365).default(7).describe("Number of days to look ahead (1-365)"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const input: BookingInput = {
-				memberId: args.memberId,
-				resourceId: args.resourceId,
-				start: args.start,
-				end: args.end,
-				notes: args.notes,
-				requireApproval: args.requireApproval,
+			const now = Math.floor(Date.now() / 1000);
+			const daysInSeconds = (args.days || 7) * 24 * 60 * 60;
+			const variables: any = {
+				limit: 100,
+				end_timestamp_from: now, // Include events that haven't ended yet (including ongoing assignments with no end date)
+				start_timestamp_to: now + daysInSeconds, // And start before the end of our time range
+				status: ["ACTIVE", "UPCOMING"], // Only return active and upcoming events, exclude CANCELED and ENDED
 			};
 
-			const data = await executeGraphQL(OPTIX_MUTATIONS.CREATE_BOOKING, { input }, endpoint, headers);
-			const response = data.createBooking;
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_UPCOMING_SCHEDULE, variables, endpoint, headers);
+			const events = data.schedule?.data || [];
 
-			if (response.errors && response.errors.length > 0) {
-				throw new Error(`Booking creation failed: ${response.errors.join(", ")}`);
-			}
+			const next24Hours = now + 24 * 60 * 60;
 
 			return {
-				booking: response.booking,
-				warnings: response.warnings || [],
-				status: response.booking.status === "confirmed" ? "✅ Booking confirmed!" : "⏳ Booking created and pending approval",
-			};
-		},
-	});
-
-	tools.set("optix_cancel_booking", {
-		name: "optix_cancel_booking",
-		description: "Cancel an existing booking. This will free up the resource for other members to book.",
-		inputSchema: z.object({
-			id: z.string().describe("The booking ID to cancel"),
-			reason: z.string().optional().describe("Optional reason for cancellation"),
-		}),
-		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_MUTATIONS.CANCEL_BOOKING, args, endpoint, headers);
-			const response = data.cancelBooking;
-
-			if (!response.success) {
-				throw new Error(`Cancellation failed: ${response.errors?.join(", ") || "Unknown error"}`);
-			}
-
-			return {
-				success: true,
-				booking: response.booking,
-				message: "✅ Booking cancelled successfully",
-			};
-		},
-	});
-	*/
-
-	tools.set("optix_get_upcoming_bookings", {
-		name: "optix_get_upcoming_bookings",
-		description: "Get upcoming bookings for a specific member or resource. Great for daily schedules and planning.",
-		inputSchema: z.object({
-			memberId: z.string().optional().describe("Get upcoming bookings for this member"),
-			resourceId: z.string().optional().describe("Get upcoming bookings for this resource"),
-			days: z.number().min(1).max(30).default(7).describe("Number of days to look ahead"),
-		}),
-		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_UPCOMING_BOOKINGS, args, endpoint, headers);
-			const bookings = data.upcomingBookings;
-
-			return {
-				bookings,
+				events,
 				summary: {
-					total: bookings.length,
-					next24Hours: bookings.filter((b: Booking) => {
-						const start = new Date(b.start);
-						const now = new Date();
-						const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-						return start >= now && start <= tomorrow;
-					}).length,
+					total: events.length,
+					next24Hours: events.filter((e: any) =>
+						e.start_timestamp >= now && e.start_timestamp <= next24Hours
+					).length,
+					daysAhead: args.days,
+					byType: events.reduce((acc: any, e: any) => {
+						acc[e.type] = (acc[e.type] || 0) + 1;
+						return acc;
+					}, {}),
 				},
 			};
 		},
 	});
 
-	// ==================== 成员管理工具 ====================
+	// ==================== Member Management Tools ====================
 
 	tools.set("optix_list_members", {
 		name: "optix_list_members",
@@ -248,12 +487,14 @@ export function createOptixTools(): Map<string, OptixTool> {
 		}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.LIST_MEMBERS, args, endpoint, headers);
-			const members = data.members;
+			const members = data.accounts?.data || data.members?.data || [];
 
 			return {
 				members,
+				total: data.accounts?.total || data.members?.total || members.length,
 				pagination: {
 					returned: members.length,
+					total: data.accounts?.total || data.members?.total || members.length,
 					offset: args.offset || 0,
 					hasMore: members.length === (args.limit || 50),
 				},
@@ -269,24 +510,14 @@ export function createOptixTools(): Map<string, OptixTool> {
 
 	tools.set("optix_get_member_profile", {
 		name: "optix_get_member_profile",
-		description: "Get detailed information about a specific member, including their membership plan, recent booking history, and contact details.",
+		description: "Get comprehensive member profile including contact details, professional info, location, social media, billing settings, and account status.",
 		inputSchema: z.object({
 			id: z.string().describe("The member ID"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_MEMBER, args, endpoint, headers);
-			const member = data.member;
-
-			return {
-				...member,
-				insights: {
-					totalRecentBookings: member.recentBookings?.length || 0,
-					memberSince: member.createdAt,
-					planStatus: member.plan?.endDate 
-						? new Date(member.plan.endDate) > new Date() ? "Active" : "Expired"
-						: "No Plan",
-				},
-			};
+			const variables = { account: { account_id: args.id } };
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_MEMBER, variables, endpoint, headers);
+			return data.account;
 		},
 	});
 
@@ -298,57 +529,23 @@ export function createOptixTools(): Map<string, OptixTool> {
 			limit: z.number().min(1).max(50).default(20).describe("Maximum number of results"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.SEARCH_MEMBERS, args, endpoint, headers);
+			// Map 'query' to 'search' for the GraphQL query
+			const variables = {
+				search: args.query,
+				limit: args.limit,
+			};
+			const data = await executeGraphQL(OPTIX_QUERIES.SEARCH_MEMBERS, variables, endpoint, headers);
+			const members = data.accounts?.data || [];
 			return {
-				members: data.searchMembers,
+				members,
 				searchTerm: args.query,
-				resultCount: data.searchMembers.length,
+				total: data.accounts?.total || members.length,
+				resultCount: members.length,
 			};
 		},
 	});
 
-	// 暂时禁用 create member mutation 工具
-	/*
-	tools.set("optix_create_member", {
-		name: "optix_create_member",
-		description: "Create a new member in your Optix workspace. You can optionally assign them to a membership plan immediately.",
-		inputSchema: z.object({
-			name: z.string().describe("Full name of the new member"),
-			email: z.string().email().describe("Email address (must be unique)"),
-			phone: z.string().optional().describe("Phone number"),
-			organizationId: z.string().optional().describe("Organization/company ID to assign the member to"),
-			planTemplateId: z.string().optional().describe("Membership plan template ID to assign"),
-			startDate: z.string().optional().describe("Plan start date in ISO 8601 format (defaults to today)"),
-		}),
-		execute: async (args, endpoint, headers) => {
-			const input = {
-				name: args.name,
-				email: args.email,
-				phone: args.phone,
-				organizationId: args.organizationId,
-				planTemplateId: args.planTemplateId,
-				startDate: args.startDate,
-			};
-
-			const data = await executeGraphQL(OPTIX_MUTATIONS.CREATE_MEMBER, { input }, endpoint, headers);
-			const response: CreateMemberResponse = data.createMember;
-
-			if (response.errors && response.errors.length > 0) {
-				throw new Error(`Member creation failed: ${response.errors.join(", ")}`);
-			}
-
-			return {
-				member: response.member,
-				message: "✅ Member created successfully!",
-				nextSteps: args.planTemplateId 
-					? "Member has been assigned a plan and can start booking immediately."
-					: "Consider assigning a membership plan to enable booking access.",
-			};
-		},
-	});
-	*/
-
-	// ==================== 资源管理工具 ====================
+	// ==================== Resource Management Tools ====================
 
 	tools.set("optix_list_resources", {
 		name: "optix_list_resources",
@@ -361,19 +558,22 @@ export function createOptixTools(): Map<string, OptixTool> {
 		}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.LIST_RESOURCES, args, endpoint, headers);
-			const resources = data.resources;
+			const resources = data.resources?.data || [];
 
 			return {
 				resources,
+				total: data.resources?.total || resources.length,
 				summary: {
-					total: resources.length,
-					byType: resources.reduce((acc: any, resource: Resource) => {
-						acc[resource.type] = (acc[resource.type] || 0) + 1;
+					returned: resources.length,
+					total: data.resources?.total || resources.length,
+					byType: resources.reduce((acc: any, resource: any) => {
+						const type = resource.resource_type?.name || resource.type || 'unknown';
+						acc[type] = (acc[type] || 0) + 1;
 						return acc;
 					}, {}),
-					averageCapacity: Math.round(
-						resources.reduce((sum: number, r: Resource) => sum + r.capacity, 0) / resources.length
-					),
+					averageCapacity: resources.length > 0 ? Math.round(
+						resources.reduce((sum: number, r: any) => sum + (r.capacity || 0), 0) / resources.length
+					) : 0,
 				},
 			};
 		},
@@ -386,7 +586,8 @@ export function createOptixTools(): Map<string, OptixTool> {
 			id: z.string().describe("The resource ID"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_RESOURCE, args, endpoint, headers);
+			const variables = { resource_id: args.id };
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_RESOURCE, variables, endpoint, headers);
 			const resource = data.resource;
 
 			return {
@@ -405,39 +606,54 @@ export function createOptixTools(): Map<string, OptixTool> {
 
 	tools.set("optix_get_resource_schedule", {
 		name: "optix_get_resource_schedule",
-		description: "Get a detailed schedule for a resource showing all time slots and their availability over a date range. Perfect for visualizing usage patterns.",
+		description: "Get a detailed schedule for a resource showing all time slots and their availability over a date range. Defaults to next 7 days if no dates provided.",
 		inputSchema: z.object({
 			resourceId: z.string().describe("The resource ID"),
-			from: z.string().describe("Start date in ISO 8601 format"),
-			to: z.string().describe("End date in ISO 8601 format"),
+			from: z.string().optional().describe("Start date in ISO 8601 format (defaults to today)"),
+			to: z.string().optional().describe("End date in ISO 8601 format (defaults to 7 days from start)"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_RESOURCE_SCHEDULE, args, endpoint, headers);
-			const resource = data.resource;
+			// Default to today if from is not provided
+			const now = new Date();
+			const defaultFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+			const fromDate = args.from ? new Date(args.from) : defaultFrom;
+
+			// Default to 7 days after fromDate if to is not provided
+			const defaultTo = new Date(fromDate);
+			defaultTo.setDate(defaultTo.getDate() + 7);
+			const toDate = args.to ? new Date(args.to) : defaultTo;
+
+			if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+				throw new Error("Invalid date format. Please use ISO 8601 format (e.g., '2025-10-04T00:00:00Z')");
+			}
+
+			const variables = {
+				resource_id: args.resourceId,
+				start_timestamp_from: Math.floor(fromDate.getTime() / 1000),
+				start_timestamp_to: Math.floor(toDate.getTime() / 1000),
+			};
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_RESOURCE_SCHEDULE, variables, endpoint, headers);
+			const bookings = data.bookings?.data || [];
+			const schedule = data.schedule?.data || [];
 
 			return {
-				resource: {
-					id: resource.id,
-					name: resource.name,
-				},
+				resourceId: args.resourceId,
 				dateRange: {
-					from: args.from,
-					to: args.to,
+					from: fromDate.toISOString(),
+					to: toDate.toISOString(),
 				},
-				schedule: resource.schedule,
-				utilizationStats: resource.schedule.map((day: any) => ({
-					date: day.date,
-					totalSlots: day.slots.length,
-					bookedSlots: day.slots.filter((slot: any) => !slot.available).length,
-					utilizationRate: Math.round(
-						(day.slots.filter((slot: any) => !slot.available).length / day.slots.length) * 100
-					),
-				})),
+				bookings,
+				schedule,
+				summary: {
+					totalBookings: bookings.length,
+					approvedBookings: bookings.filter((b: any) => b.is_approved && !b.is_canceled).length,
+					scheduleEvents: schedule.length,
+				},
 			};
 		},
 	});
 
-	// ==================== 计划模板管理工具 ====================
+	// ==================== Plan Template Management Tools ====================
 
 	tools.set("optix_list_plan_templates", {
 		name: "optix_list_plan_templates",
@@ -448,19 +664,21 @@ export function createOptixTools(): Map<string, OptixTool> {
 		}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.LIST_PLAN_TEMPLATES, args, endpoint, headers);
-			const plans = data.planTemplates;
+			const plans = data.planTemplates?.data || [];
 
 			return {
 				planTemplates: plans,
+				total: data.planTemplates?.total || plans.length,
 				summary: {
-					total: plans.length,
-					priceRange: {
-						min: Math.min(...plans.map((p: PlanTemplate) => p.price)),
-						max: Math.max(...plans.map((p: PlanTemplate) => p.price)),
-						currency: plans[0]?.currency || "USD",
-					},
-					byBillingPeriod: plans.reduce((acc: any, plan: PlanTemplate) => {
-						acc[plan.billingPeriod] = (acc[plan.billingPeriod] || 0) + 1;
+					returned: plans.length,
+					total: data.planTemplates?.total || plans.length,
+					priceRange: plans.length > 0 ? {
+						min: Math.min(...plans.map((p: any) => p.price || 0)),
+						max: Math.max(...plans.map((p: any) => p.price || 0)),
+					} : null,
+					byFrequency: plans.reduce((acc: any, plan: any) => {
+						const freq = plan.price_frequency || 'unknown';
+						acc[freq] = (acc[freq] || 0) + 1;
 						return acc;
 					}, {}),
 				},
@@ -475,12 +693,13 @@ export function createOptixTools(): Map<string, OptixTool> {
 			id: z.string().describe("The plan template ID"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_PLAN_TEMPLATE, args, endpoint, headers);
+			const variables = { plan_template_id: args.id };
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_PLAN_TEMPLATE, variables, endpoint, headers);
 			return data.planTemplate;
 		},
 	});
 
-	// ==================== 组织和设置工具 ====================
+	// ==================== Organization & Settings Tools ====================
 
 	tools.set("optix_get_organization_info", {
 		name: "optix_get_organization_info",
@@ -488,19 +707,20 @@ export function createOptixTools(): Map<string, OptixTool> {
 		inputSchema: z.object({}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.GET_ORGANIZATION_INFO, {}, endpoint, headers);
-			const org = data.organization;
+			const me = data.me;
 
 			return {
-				...org,
-				currentTime: new Date().toLocaleString("en-US", { timeZone: org.timezone }),
-				subscriptionStatus: org.subscription?.expiresAt 
-					? new Date(org.subscription.expiresAt) > new Date() ? "Active" : "Expired"
-					: "Unknown",
+				authType: me.authType,
+				user: me.user,
+				organization: me.organization,
+				currentTime: me.organization?.timezone
+					? new Date().toLocaleString("en-US", { timeZone: me.organization.timezone })
+					: new Date().toLocaleString(),
 			};
 		},
 	});
 
-	// ==================== 统计和报告工具 ====================
+	// ==================== Statistics & Reporting Tools ====================
 
 	tools.set("optix_get_booking_stats", {
 		name: "optix_get_booking_stats",
@@ -512,18 +732,34 @@ export function createOptixTools(): Map<string, OptixTool> {
 			memberIds: z.array(z.string()).optional().describe("Filter stats for specific members"),
 		}),
 		execute: async (args, endpoint, headers) => {
-			const data = await executeGraphQL(OPTIX_QUERIES.GET_BOOKING_STATS, args, endpoint, headers);
-			const stats: BookingStats = data.bookingStats;
+			// Convert ISO dates to Unix timestamps
+			const variables = {
+				start_timestamp_from: Math.floor(new Date(args.from).getTime() / 1000),
+				start_timestamp_to: Math.floor(new Date(args.to).getTime() / 1000),
+			};
+
+			const data = await executeGraphQL(OPTIX_QUERIES.GET_BOOKING_STATS, variables, endpoint, headers);
+			const bookings = data.bookings?.data || [];
+			const total = data.bookings?.total || bookings.length;
+
+			// Calculate statistics
+			const approvedBookings = bookings.filter((b: any) => b.is_approved && !b.is_canceled).length;
+			const canceledBookings = bookings.filter((b: any) => b.is_canceled).length;
+			const totalRevenue = bookings.reduce((sum: number, b: any) =>
+				sum + (b.cost?.total_amount || 0), 0
+			);
 
 			return {
-				...stats,
+				totalBookings: total,
+				returned: bookings.length,
+				approvedBookings,
+				canceledBookings,
+				totalRevenue,
 				insights: {
-					cancellationRate: Math.round((stats.cancelledBookings / stats.totalBookings) * 100),
-					averageRevenuePerBooking: Math.round(stats.totalRevenue / stats.confirmedBookings * 100) / 100,
-					topPerformingResource: stats.popularResources[0]?.resourceName || "None",
-					peakUsageDay: stats.dailyBreakdown.reduce((peak, day) => 
-						day.bookingCount > peak.bookingCount ? day : peak
-					),
+					cancellationRate: total > 0 ? Math.round((canceledBookings / total) * 100) : 0,
+					averageRevenuePerBooking: approvedBookings > 0
+						? Math.round((totalRevenue / approvedBookings) * 100) / 100
+						: 0,
 				},
 			};
 		},
@@ -531,20 +767,33 @@ export function createOptixTools(): Map<string, OptixTool> {
 
 	tools.set("optix_get_member_stats", {
 		name: "optix_get_member_stats",
-		description: "Get member statistics and insights including growth metrics, plan distribution, and top users by activity.",
+		description: "Get account statistics including all account types (Member, Team, etc.) with status and type breakdowns.",
 		inputSchema: z.object({}),
 		execute: async (args, endpoint, headers) => {
 			const data = await executeGraphQL(OPTIX_QUERIES.GET_MEMBER_STATS, {}, endpoint, headers);
-			const stats: MemberStats = data.memberStats;
+			const accounts = data.accounts?.data || [];
+			const total = data.accounts?.total || accounts.length;
+
+			// Calculate stats from all accounts
+			const activeAccounts = accounts.filter((a: any) => a.status === 'ACTIVE').length;
+			const statusBreakdown = accounts.reduce((acc: any, a: any) => {
+				acc[a.status] = (acc[a.status] || 0) + 1;
+				return acc;
+			}, {});
+			const typeBreakdown = accounts.reduce((acc: any, a: any) => {
+				acc[a.type] = (acc[a.type] || 0) + 1;
+				return acc;
+			}, {});
 
 			return {
-				...stats,
+				totalAccounts: total,
+				activeAccounts,
+				returned: accounts.length,
+				statusBreakdown,
+				typeBreakdown,
 				insights: {
-					activePercentage: Math.round((stats.activeMembers / stats.totalMembers) * 100),
-					growthRate: `${stats.newMembersThisMonth} new members this month`,
-					mostPopularPlan: stats.membersByPlan.reduce((max, plan) => 
-						plan.count > max.count ? plan : max
-					)?.planName || "None",
+					activePercentage: total > 0 ? Math.round((activeAccounts / total) * 100) : 0,
+					totalReturned: accounts.length,
 				},
 			};
 		},
