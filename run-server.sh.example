@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Optix MCP Server Wrapper Script
+# This script sets the required environment variables and runs the server
+#
+# USAGE:
+# 1. Copy this file to run-server.sh:
+#    cp run-server.sh.example run-server.sh
+#
+# 2. Edit run-server.sh and replace YOUR_TOKEN with your actual Optix API token
+#
+# 3. Make it executable:
+#    chmod +x run-server.sh
+#
+# 4. Run with MCP Inspector:
+#    npx @modelcontextprotocol/inspector ./run-server.sh
+
+export ENDPOINT="https://api.optixapp.com/graphql"
+export HEADERS='{"Authorization":"Bearer YOUR_TOKEN_HERE"}'
+export ALLOW_MUTATIONS="false"  # Set to "true" to enable create/update/cancel operations
+
+# Run the server
+exec node dist/index.js "$@"
