@@ -63,12 +63,12 @@ When the endpoint contains "optix" or "optixapp.com", **19 specialized tools** a
 
 ### Installation
 
-\`\`\`bash
+```bash
 git clone https://github.com/Raulitoflying/optix-graphql-mcp.git
 cd optix-graphql-mcp
 npm install
 npm run build
-\`\`\`
+```
 
 ### Configuration for AI Applications
 
@@ -77,7 +77,7 @@ npm run build
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-\`\`\`json
+```json
 {
   "mcpServers": {
     "optix": {
@@ -91,14 +91,14 @@ npm run build
     }
   }
 }
-\`\`\`
+```
 
 #### 📝 Cursor
 
 **macOS/Linux**: `~/.cursor/mcp_config.json`
 **Windows**: `%USERPROFILE%\.cursor\mcp_config.json`
 
-\`\`\`json
+```json
 {
   "mcpServers": {
     "optix": {
@@ -112,7 +112,7 @@ npm run build
     }
   }
 }
-\`\`\`
+```
 
 #### 🌊 Windsurf
 
@@ -122,7 +122,7 @@ Similar configuration to Cursor. Check Windsurf's documentation for config file 
 
 Install MCP extension, then create `.vscode/mcp.json`:
 
-\`\`\`json
+```json
 {
   "mcpServers": {
     "optix": {
@@ -136,7 +136,7 @@ Install MCP extension, then create `.vscode/mcp.json`:
     }
   }
 }
-\`\`\`
+```
 
 **Important**: Replace `/absolute/path/to/optix-graphql-mcp` with your actual path and `YOUR_TOKEN` with your Optix API token from [Optix Dashboard](https://app.optixapp.com).
 
@@ -227,17 +227,17 @@ Uses `optix_search_members`
 
 ### Scripts
 
-\`\`\`bash
+```bash
 npm run dev      # Development with auto-reload
 npm run build    # Production build
 npm run start    # Start production server
 npm run format   # Format code with Biome
 npm run check    # Check formatting
-\`\`\`
+```
 
 ### Testing
 
-\`\`\`bash
+```bash
 # Test MCP stdio communication
 node test-mcp-stdio.js
 
@@ -251,7 +251,7 @@ node test-mutation-mode.js
 # Test specific features
 node test-pagination.js
 node test-booking-fixes.js
-\`\`\`
+```
 
 ### Using MCP Inspector
 
@@ -263,7 +263,7 @@ node test-booking-fixes.js
 
 #### Setup and Run
 
-\`\`\`bash
+```bash
 # 1. Create your local configuration
 cp run-server.sh.example run-server.sh
 
@@ -272,7 +272,7 @@ cp run-server.sh.example run-server.sh
 
 # 3. Run Inspector
 npx @modelcontextprotocol/inspector ./run-server.sh
-\`\`\`
+```
 
 This will:
 1. Start the MCP server with your configuration
@@ -290,7 +290,7 @@ Once the browser opens:
 
 **Example Tests:**
 
-\`\`\`json
+```json
 // Base GraphQL Tools
 // introspect-schema - No parameters needed
 {}
@@ -323,7 +323,7 @@ Once the browser opens:
 {
   "days": 1
 }
-\`\`\`
+```
 
 **Tips:**
 - Use Inspector's **JSON editor** for complex parameters
@@ -335,7 +335,7 @@ Once the browser opens:
 
 ### Project Structure
 
-\`\`\`
+```
 src/
 ├── index.ts              # Main MCP server
 ├── helpers/
@@ -346,7 +346,7 @@ src/
     ├── queries.ts        # Query templates (15+ read + 4 mutations)
     ├── tools.ts          # Tool definitions
     └── types.ts          # TypeScript types
-\`\`\`
+```
 
 ## 🤝 Contributing
 
@@ -362,7 +362,7 @@ src/
 
 ### Example Tool
 
-\`\`\`typescript
+```typescript
 tools.set("optix_example", {
   name: "optix_example",
   description: "Example tool description",
@@ -379,7 +379,7 @@ tools.set("optix_example", {
     return data.result;
   },
 });
-\`\`\`
+```
 
 ## 📄 License
 
