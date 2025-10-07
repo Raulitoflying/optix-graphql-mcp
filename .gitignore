@@ -80,3 +80,6 @@ optix-schema.graphql
 # Backup files
 *.backup
 *.bak
+
+# Local development scripts with sensitive data
+run-server.sh
