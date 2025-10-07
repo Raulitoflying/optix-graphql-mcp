@@ -6,10 +6,28 @@ A specialized Model Context Protocol (MCP) server for **Optix workspace manageme
 
 ### 🔧 Dual-Mode Operation
 
-- **Generic GraphQL Mode**: Full GraphQL introspection and querying for any GraphQL API
-- **Optix Business Mode**: Auto-detects Optix endpoints and enables specialized business tools
+The server provides **2 base tools** for any GraphQL API, plus **19 Optix-specific tools** when connected to Optix.
 
-### 🎯 Optix Business Tools (15+ read-only + 4 mutation tools)
+#### 🔹 Base GraphQL Tools (Always Available)
+
+- `introspect-schema` - Get GraphQL schema information for any endpoint
+- `query-graphql` - Execute custom GraphQL queries with variables
+
+These tools work with **any GraphQL API**, not just Optix. Perfect for:
+- Exploring unknown GraphQL schemas
+- Running custom queries
+- Debugging API responses
+- Advanced use cases not covered by specialized tools
+
+**Note**: While these tools can technically perform any operation, the specialized Optix tools below are **faster and more AI-friendly** because they:
+- Complete operations in 1 step vs 2-3 steps
+- Have clear, simple parameters
+- Return optimized data structures
+- Don't require knowledge of GraphQL syntax
+
+#### 🎯 Optix Business Tools (Auto-enabled for Optix APIs)
+
+When the endpoint contains "optix" or "optixapp.com", **19 specialized tools** are automatically loaded:
 
 #### 📅 Booking Management
 - `optix_list_bookings` - List and filter bookings
@@ -52,25 +70,75 @@ npm install
 npm run build
 \`\`\`
 
-### Claude Desktop Configuration
+### Configuration for AI Applications
 
-Add to `claude_desktop_config.json`:
+#### 🖥️ Claude Desktop
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 \`\`\`json
 {
   "mcpServers": {
     "optix": {
       "command": "node",
-      "args": ["/absolute/path/to/dist/index.js"],
+      "args": ["/absolute/path/to/optix-graphql-mcp/dist/index.js"],
       "env": {
         "ENDPOINT": "https://api.optixapp.com/graphql",
-        "HEADERS": "{\"Authorization\":\"Bearer your-token\"}",
+        "HEADERS": "{\"Authorization\":\"Bearer YOUR_TOKEN\"}",
         "ALLOW_MUTATIONS": "false"
       }
     }
   }
 }
 \`\`\`
+
+#### 📝 Cursor
+
+**macOS/Linux**: `~/.cursor/mcp_config.json`
+**Windows**: `%USERPROFILE%\.cursor\mcp_config.json`
+
+\`\`\`json
+{
+  "mcpServers": {
+    "optix": {
+      "command": "node",
+      "args": ["/absolute/path/to/optix-graphql-mcp/dist/index.js"],
+      "env": {
+        "ENDPOINT": "https://api.optixapp.com/graphql",
+        "HEADERS": "{\"Authorization\":\"Bearer YOUR_TOKEN\"}",
+        "ALLOW_MUTATIONS": "false"
+      }
+    }
+  }
+}
+\`\`\`
+
+#### 🌊 Windsurf
+
+Similar configuration to Cursor. Check Windsurf's documentation for config file location.
+
+#### 💻 VS Code
+
+Install MCP extension, then create `.vscode/mcp.json`:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "optix": {
+      "command": "node",
+      "args": ["${workspaceFolder}/../optix-graphql-mcp/dist/index.js"],
+      "env": {
+        "ENDPOINT": "https://api.optixapp.com/graphql",
+        "HEADERS": "{\"Authorization\":\"Bearer YOUR_TOKEN\"}",
+        "ALLOW_MUTATIONS": "false"
+      }
+    }
+  }
+}
+\`\`\`
+
+**Important**: Replace `/absolute/path/to/optix-graphql-mcp` with your actual path and `YOUR_TOKEN` with your Optix API token from [Optix Dashboard](https://app.optixapp.com).
 
 ### Environment Variables
 
@@ -98,23 +166,62 @@ Add to `claude_desktop_config.json`:
 
 ## 💬 Usage Examples
 
-### Check Today's Schedule
+### Using Base GraphQL Tools
+
+**Explore Any GraphQL API:**
+> "Introspect the schema of this GraphQL endpoint"
+
+Uses `introspect-schema` to discover available types, queries, and mutations.
+
+**Run Custom Queries:**
+> "Query the GraphQL API with this custom query: { users { id name } }"
+
+Uses `query-graphql` to execute any GraphQL query against the configured endpoint.
+
+### Using Optix Business Tools
+
+**Check Today's Schedule:**
 > "Show me today's complete schedule"
 
 Uses `optix_get_upcoming_schedule`
 
-### Find Available Rooms
+**Find Available Rooms:**
 > "Is Conference Room A available tomorrow 2-4 PM?"
 
 Uses `optix_check_availability`
 
-### Create Booking (requires mutations)
+**Search Members:**
+> "Find all members named Sarah"
+
+Uses `optix_search_members`
+
+**Create Booking (requires mutations):**
 > "Book main conference room for John tomorrow 3-5 PM"
 
 1. Searches member: `optix_search_members`
 2. Finds resource: `optix_list_resources`
 3. Checks availability: `optix_check_availability`
 4. Creates booking: `optix_create_booking`
+
+## 🔧 Troubleshooting
+
+### Server not connecting?
+1. Check the path is absolute (not relative)
+2. Ensure `dist/index.js` exists (run `npm run build`)
+3. Verify your Optix token is valid
+4. Check config file has valid JSON syntax
+5. Restart the AI application after config changes
+
+### Tools not appearing?
+1. Restart the AI application completely
+2. Check server logs for errors
+3. Verify `ENDPOINT` points to `https://api.optixapp.com/graphql`
+4. Ensure Node.js is installed and accessible
+
+### Mutations not working?
+1. Set `ALLOW_MUTATIONS=true` in config
+2. Verify your Optix token has write permissions
+3. Check mutation is enabled for your Optix account
 
 ## 🔧 Development
 
@@ -148,13 +255,83 @@ node test-booking-fixes.js
 
 ### Using MCP Inspector
 
-Interactive testing and debugging:
+**MCP Inspector** is a web-based tool for interactively testing MCP servers. It's perfect for:
+- Testing tools before deploying
+- Debugging issues
+- Understanding tool parameters
+- Viewing real API responses
+
+#### Setup and Run
 
 \`\`\`bash
+# 1. Create your local configuration
+cp run-server.sh.example run-server.sh
+
+# 2. Edit run-server.sh and add your Optix token
+# Replace YOUR_TOKEN_HERE with your actual token
+
+# 3. Run Inspector
 npx @modelcontextprotocol/inspector ./run-server.sh
 \`\`\`
 
-Opens browser UI to test all tools interactively.
+This will:
+1. Start the MCP server with your configuration
+2. Launch Inspector proxy on `http://localhost:6274`
+3. Open your browser automatically
+
+#### Using Inspector
+
+Once the browser opens:
+
+1. **View Tools** - See all 21 available tools (2 base + 19 Optix) in the left sidebar
+2. **Test a Tool** - Click any tool to see its parameters
+3. **Run Tool** - Fill in parameters and click "Run"
+4. **View Results** - See the JSON response from API
+
+**Example Tests:**
+
+\`\`\`json
+// Base GraphQL Tools
+// introspect-schema - No parameters needed
+{}
+
+// query-graphql
+{
+  "query": "{ accounts(limit: 5) { data { account_id name email } } }",
+  "variables": {}
+}
+
+// Optix Business Tools
+// optix_list_bookings
+{
+  "days": 7
+}
+
+// optix_search_members
+{
+  "query": "John"
+}
+
+// optix_check_availability
+{
+  "resourceId": "602411",
+  "start": "2024-10-08T14:00:00Z",
+  "end": "2024-10-08T16:00:00Z"
+}
+
+// optix_get_upcoming_schedule
+{
+  "days": 1
+}
+\`\`\`
+
+**Tips:**
+- Use Inspector's **JSON editor** for complex parameters
+- Check the **Response** tab to see full API output
+- Test mutations in Inspector before using in production
+- Inspector runs on port 6274 by default
+
+> **Security Note**: `run-server.sh` is git-ignored because it contains your API token. Never commit files with real tokens!
 
 ### Project Structure
 
