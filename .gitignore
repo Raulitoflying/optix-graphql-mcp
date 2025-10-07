@@ -83,3 +83,4 @@ optix-schema.graphql
 
 # Local development scripts with sensitive data
 run-server.sh
+CLAUDE.md
