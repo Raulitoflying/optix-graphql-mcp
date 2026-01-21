@@ -2,7 +2,11 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { parse } from "graphql";
+import { buildSchema, parse } from "graphql";
+import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { checkDeprecatedArguments } from "./helpers/deprecation.js";
 import {
@@ -40,6 +44,44 @@ const EnvSchema = z.object({
 
 const env = EnvSchema.parse(process.env);
 
+function resolveLocalSchemaPath() {
+	const currentDir = dirname(fileURLToPath(import.meta.url));
+	const candidate = resolve(currentDir, "../schema.full.graphql");
+	return existsSync(candidate) ? candidate : undefined;
+}
+
+const localSchemaPath = resolveLocalSchemaPath();
+const schemaSource = env.SCHEMA ?? localSchemaPath;
+
+async function loadSchemaWithFallback() {
+	if (schemaSource) {
+		if (
+			schemaSource.startsWith("http://") ||
+			schemaSource.startsWith("https://")
+		) {
+			return introspectSchemaFromUrl(schemaSource);
+		}
+
+		const localSchema = await introspectLocalSchema(schemaSource);
+		try {
+			buildSchema(localSchema);
+			return localSchema;
+		} catch (error) {
+			const remoteSchema = await introspectEndpoint(env.ENDPOINT, env.HEADERS);
+			try {
+				await writeFile(schemaSource, remoteSchema);
+			} catch (writeError) {
+				console.error(
+					`Failed to update local schema at ${schemaSource}: ${writeError}`,
+				);
+			}
+			return remoteSchema;
+		}
+	}
+
+	return introspectEndpoint(env.ENDPOINT, env.HEADERS);
+}
+
 // Detect if this is an Optix API endpoint
 const IS_OPTIX = env.ENDPOINT.includes("optixapp.com") || env.ENDPOINT.includes("optix");
 
@@ -51,19 +93,7 @@ const server = new McpServer({
 
 server.resource("graphql-schema", new URL(env.ENDPOINT).href, async (uri) => {
 	try {
-		let schema: string;
-		if (env.SCHEMA) {
-			if (
-				env.SCHEMA.startsWith("http://") ||
-				env.SCHEMA.startsWith("https://")
-			) {
-				schema = await introspectSchemaFromUrl(env.SCHEMA);
-			} else {
-				schema = await introspectLocalSchema(env.SCHEMA);
-			}
-		} else {
-			schema = await introspectEndpoint(env.ENDPOINT, env.HEADERS);
-		}
+		const schema = await loadSchemaWithFallback();
 
 		return {
 			contents: [
@@ -91,12 +121,7 @@ server.tool(
 	},
 	async () => {
 		try {
-			let schema: string;
-			if (env.SCHEMA) {
-				schema = await introspectLocalSchema(env.SCHEMA);
-			} else {
-				schema = await introspectEndpoint(env.ENDPOINT, env.HEADERS);
-			}
+			const schema = await loadSchemaWithFallback();
 
 			return {
 				content: [
