@@ -1,0 +1,472 @@
+{
+  "generated_from": {
+    "stepsMeta": "/Users/rauloptix/OptixWeb/optix/ui-components/src/views/workflows/utils/stepsMeta.js",
+    "variablesMeta": "/Users/rauloptix/OptixWeb/optix/ui-components/src/views/workflows/utils/variablesMeta.js",
+    "operationsMeta": "/Users/rauloptix/OptixWeb/optix/ui-components/src/views/workflows/utils/operationsMeta.js"
+  },
+  "triggers": {
+    "ACCOUNT_TYPE_CHANGED": {
+      "label": "Account type changed",
+      "description": "Triggers when an account is assigned a new type."
+    },
+    "ALLOWANCE_CONSUMED": {
+      "label": "Allowance was consumed",
+      "description": "Triggers when an account’s allowance amount decreases, e.g. after a booking or purchase that consumes allowance."
+    },
+    "BOOKING_ENDED": {
+      "label": "Resource booking ended",
+      "description": "Triggers when a booking ends."
+    },
+    "DATE": {
+      "label": "Date",
+      "description": "Triggers before, after, or on a date related to an account."
+    },
+    "DOCUMENT_COMPLETE": {
+      "label": "Document complete",
+      "description": "Triggers when all required parties have signed a document and it is marked as signed."
+    },
+    "DOCUMENT_SENT": {
+      "label": "Document sent",
+      "description": "Triggers when a document is sent to a user for signing."
+    },
+    "INVOICE_PAID": {
+      "label": "Invoice paid",
+      "description": "Triggers when an invoice receives a payment and the balance becomes zero."
+    },
+    "INVOICE_DUE": {
+      "label": "Invoice became due",
+      "description": "Triggers when an invoice changes to due."
+    },
+    "INVOICE_OVERDUE": {
+      "label": "Invoice became overdue",
+      "description": "Triggers when an invoice changes to overdue (controlled by your Invoice Policy in settings)."
+    },
+    "MANUAL": {
+      "label": "Manual enrollment",
+      "description": "Can be manually triggered by an admin from Inbox or Account menu."
+    },
+    "NEW_UNCONFIRMED_USER": {
+      "label": "New unconfirmed user",
+      "description": "Triggers 1 hour after a user is added but has not completed creating their account. E.g. unfinished app onboarding, added by Inquiry widget, etc."
+    },
+    "NEW_ACTIVE_USER": {
+      "label": "New active user",
+      "description": "Triggers when a user's status becomes active."
+    },
+    "NEW_ASSIGNMENT": {
+      "label": "New assignment",
+      "description": "Triggers when an admin sets up an assignment for a user."
+    },
+    "NEW_BOOKING": {
+      "label": "New resource booking",
+      "description": "Triggers when a booking is created by either a user or an admin."
+    },
+    "NEW_CHECKIN": {
+      "label": "New check-in",
+      "description": "Triggers when a user is checked in to a location."
+    },
+    "NEW_ISSUE": {
+      "label": "New issue raised",
+      "description": "Triggers when a user reports an issue on their app. E.g. ‘Wi-Fi is too slow’."
+    },
+    "NEW_PASS_SALE": {
+      "label": "New pass sale",
+      "description": "Triggers when a pass is added to a user or team’s account."
+    },
+    "NEW_PLAN": {
+      "label": "New plan added",
+      "description": "Triggers when a plan is added to a user or team’s account."
+    },
+    "NEW_PRODUCT_SALE": {
+      "label": "New product sale",
+      "description": "Triggers when a user buys a product or an admin adds a sale to an invoice."
+    },
+    "NEW_TOUR": {
+      "label": "New tour booking",
+      "description": "Triggers when a booking is created via the tour booking web widget."
+    }
+  },
+  "actions": {
+    "ADD_ALLOWANCE": {
+      "label": "Add allowance",
+      "description": "Add allowance to a user or team"
+    },
+    "ADD_TO_GROUP_CONVERSATION": {
+      "label": "Add to group conversation",
+      "description": "Add user to group conversation"
+    },
+    "ADD_INVOICE_ITEM": {
+      "label": "Add invoice item",
+      "description": "Add a charge or credit to a user or team's next invoice"
+    },
+    "CHANGE_ACCOUNT_TYPE": {
+      "label": "Change account type",
+      "description": "Useful when the account type is used for conditions, e.g. resource availability"
+    },
+    "CHANGE_PRIMARY_LOCATION": {
+      "label": "Change primary location",
+      "description": "Set a user’s primary location"
+    },
+    "CHANGE_USER_STATUS": {
+      "label": "Change user status",
+      "description": "Set a user’s status to active or inactive"
+    },
+    "CREATE_TASK": {
+      "label": "Create a task",
+      "description": "Create a task for any admin, containing a link to the trigger of the automation"
+    },
+    "SEND_EMAIL": {
+      "label": "Send an email",
+      "description": "Send an email to a user, team, or an admin"
+    },
+    "SEND_MESSAGE": {
+      "label": "Send a message",
+      "description": "Send a message to a user, team, or an admin"
+    },
+    "SEND_DOC_TO_SIGN": {
+      "label": "Send a document for signing",
+      "description": "Have documents digitally signed and stored in the Account panel"
+    },
+    "POST_TO_FEED": {
+      "label": "Post to feed",
+      "description": "Create a new post on the community feed"
+    }
+  },
+  "operations": {
+    "EQUALS": {
+      "label": "Is"
+    },
+    "DIFF": {
+      "label": "Is not"
+    },
+    "OR": {
+      "label": "Or"
+    },
+    "AND": {
+      "label": "And"
+    },
+    "GT": {
+      "label": "Is more than"
+    },
+    "LT": {
+      "label": "Is less than"
+    },
+    "BETWEEN": {
+      "label": "Is between"
+    },
+    "IN": {
+      "label": "Is any of"
+    },
+    "NOT_IN": {
+      "label": "Is not any of"
+    },
+    "GTE": {
+      "label": "Is after (and including)"
+    },
+    "LTE": {
+      "label": "Is before (and including)"
+    },
+    "EQUAL_DAY_AND_MONTH": {
+      "label": "Is a specific date (MM/DD)"
+    }
+  },
+  "variables": {
+    "SHORTCUT": {
+      "label": "Account has...",
+      "group": "ACCOUNT"
+    },
+    "TOUR_DATE": {
+      "label": "Tour booking date",
+      "group": "TOUR"
+    },
+    "ACCOUNT_PRIMARY_LOCATION_ID": {
+      "label": "Account's primary location",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_STATUS": {
+      "label": "Account status",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_CHECKIN_STATUS": {
+      "label": "Check-in status",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_SOURCE": {
+      "label": "User source",
+      "group": "USER PROPERTY"
+    },
+    "ACCOUNT_PLAN_END_DATE": {
+      "label": "Plan end date",
+      "group": "PLAN"
+    },
+    "ACCOUNT_PLAN_NAME": {
+      "label": "Plan name",
+      "group": "PLAN",
+      "hint": "The name of the plan that has been added to the account"
+    },
+    "ACCOUNT_PLAN_PRICE": {
+      "label": "Plan price",
+      "group": "PLAN",
+      "hint": "The recurring cost of the plan"
+    },
+    "ACCOUNT_PLAN_START_DATE": {
+      "label": "Plan start date",
+      "group": "PLAN"
+    },
+    "ACCOUNT_PLAN_TEMPLATE_ID": {
+      "label": "Plan template",
+      "group": "PLAN"
+    },
+    "ACCOUNT_ACTIVE_PLAN_TEMPLATE_ID": {
+      "label": "Active plan",
+      "group": "ACCOUNT",
+      "hint": "In-trial or active plans of the account"
+    },
+    "ACCOUNT_ACTIVE_PASS_PRODUCT_ID": {
+      "label": "Active pass",
+      "group": "ACCOUNT",
+      "hint": "Accounts that have bought this pass and still have remaining allowance, including those with access to allowance through a team pass purchase"
+    },
+    "PASS_SALE_PRODUCT_ID": {
+      "label": "Pass",
+      "group": "PASS"
+    },
+    "ASSIGNMENT_RESOURCE_ID": {
+      "label": "Assignment resource",
+      "group": "ASSIGNMENT"
+    },
+    "ASSIGNMENT_RESOURCE_TYPE_ID": {
+      "label": "Assignment resource type",
+      "group": "ASSIGNMENT"
+    },
+    "ASSIGNMENT_PRICE": {
+      "label": "Assignment price",
+      "group": "ASSIGNMENT"
+    },
+    "ASSIGNMENT_START_DATE": {
+      "label": "Assignment start date",
+      "group": "ASSIGNMENT"
+    },
+    "BOOKING_DATE": {
+      "label": "Booking date",
+      "group": "BOOKING"
+    },
+    "BOOKING_DAY_OF_WEEK": {
+      "label": "Booking day of week",
+      "group": "BOOKING"
+    },
+    "BOOKING_DURATION": {
+      "label": "Booking duration",
+      "group": "BOOKING"
+    },
+    "BOOKING_PRICE": {
+      "label": "Booking price",
+      "group": "BOOKING"
+    },
+    "BOOKING_RESOURCE_ID": {
+      "label": "Booking resource",
+      "group": "BOOKING"
+    },
+    "BOOKING_RESOURCE_TYPE_ID": {
+      "label": "Booking resource type",
+      "group": "BOOKING"
+    },
+    "BOOKING_SOURCE": {
+      "label": "Booking source",
+      "group": "BOOKING"
+    },
+    "BOOKING_START_TIME": {
+      "label": "Booking start time",
+      "group": "BOOKING"
+    },
+    "DOCUMENT_NAME": {
+      "label": "Document name",
+      "group": "DOCUMENT"
+    },
+    "DOCUMENT_STATUS": {
+      "label": "Document status",
+      "group": "DOCUMENT"
+    },
+    "INVOICE_BALANCE": {
+      "label": "Invoice balance",
+      "group": "INVOICE"
+    },
+    "INVOICE_DUE_DATE": {
+      "label": "Invoice due date",
+      "group": "INVOICE"
+    },
+    "INVOICE_NUMBER": {
+      "label": "Invoice number",
+      "group": "INVOICE"
+    },
+    "INVOICE_PAID_DATE": {
+      "label": "Invoice paid date",
+      "group": "INVOICE"
+    },
+    "INVOICE_STATUS": {
+      "label": "Invoice status",
+      "group": "INVOICE"
+    },
+    "INVOICE_TOTAL": {
+      "label": "Invoice total",
+      "group": "INVOICE"
+    },
+    "ISSUE_CATEGORY": {
+      "label": "Issue type",
+      "group": "ISSUE"
+    },
+    "LOCATION_ID": {
+      "label": "Location",
+      "group": "ORGANIZATION"
+    },
+    "MACRO_ASSIGNMENT_DETAILS": {
+      "label": "Assignment details e.g. Resource name, start date, etc.",
+      "group": "ASSIGNMENT"
+    },
+    "MACRO_BOOKING_DETAILS": {
+      "label": "Booking Details e.g. Resource, date, etc.",
+      "group": "BOOKING"
+    },
+    "MACRO_GET_STARTED_BUTTON": {
+      "label": "Get started button ",
+      "group": "ACCOUNT"
+    },
+    "MACRO_INVOICE_DETAILS": {
+      "label": "Invoice details e.g. Invoice #, date, etc.",
+      "group": "INVOICE"
+    },
+    "MACRO_NEW_PLAN_DETAILS": {
+      "label": "Plan details e.g. Plan start date, price, etc.",
+      "group": "PLAN"
+    },
+    "MACRO_VIEW_BOOKINGS_BUTTON": {
+      "label": "View bookings button ",
+      "group": "BOOKING"
+    },
+    "MACRO_VIEW_INVOICE_BUTTON": {
+      "label": "View invoice button ",
+      "group": "INVOICE"
+    },
+    "MACRO_VIEW_PLAN_BUTTON": {
+      "label": "View plan button ",
+      "group": "PLAN"
+    },
+    "NTH_TIME": {
+      "label": "Nth time",
+      "group": "OTHER"
+    },
+    "ORGANIZATION_NAME": {
+      "label": "Organization Name",
+      "group": "ORGANIZATION"
+    },
+    "PRODUCT_SALE_PRODUCT_ID": {
+      "label": "Product",
+      "group": "MARKETPLACE"
+    },
+    "PRODUCT_SALE_PRODUCT_TAG": {
+      "label": "Product tag",
+      "group": "MARKETPLACE"
+    },
+    "TRIGGER_DATE": {
+      "label": "Trigger date",
+      "group": "ACCOUNT"
+    },
+    "WALLET_ACCESS_TEMPLATE_ID": {
+      "label": "Allowance template",
+      "group": "ALLOWANCE",
+      "hint": "The allowance template that is attached to the account"
+    },
+    "ACCOUNT_CITY": {
+      "label": "Account city",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_COMPANY": {
+      "label": "Account company",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_FINAL_PLAN_END_DATE": {
+      "label": "Final plan end date",
+      "group": "PLAN"
+    },
+    "ACCOUNT_FIRST_NAME": {
+      "label": "First name",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_ID": {
+      "label": "Full name",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_LAST_BOOKING_DATE": {
+      "label": "Last booking date",
+      "group": "BOOKING"
+    },
+    "ACCOUNT_LAST_MOBILE_APP_USE_DATE": {
+      "label": "Last mobile app use date",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_MIN_DUE_INVOICE_DUE_DATE": {
+      "label": "Oldest unpaid Invoice due date",
+      "group": "INVOICE"
+    },
+    "ACCOUNT_NEXT_ASSIGNMENT_START_DATE": {
+      "label": "Next assignment start date",
+      "group": "ASSIGNMENT"
+    },
+    "ACCOUNT_NEXT_BOOKING_DATE": {
+      "label": "Next booking date",
+      "group": "BOOKING"
+    },
+    "ACCOUNT_PENDING_INVOICE_DUE_DATE": {
+      "label": "Pending invoice due date",
+      "group": "INVOICE"
+    },
+    "ACCOUNT_NEXT_PLAN_END_DATE": {
+      "label": "Next plan end date",
+      "group": "PLAN"
+    },
+    "ACCOUNT_NEXT_PLAN_START_DATE": {
+      "label": "Next plan start date",
+      "group": "PLAN"
+    },
+    "ACCOUNT_NEXT_TOUR_DATE": {
+      "label": "Upcoming tour booking date",
+      "group": "TOUR"
+    },
+    "ACCOUNT_PHONE": {
+      "label": "Phone number",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_POSITION": {
+      "label": "Position",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_SHORT_BIO": {
+      "label": "Short bio",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_SIGNUP_DATE": {
+      "label": "Signup date",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_SKILLS": {
+      "label": "Skills",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_TOTAL_CONFIRMED_BOOKINGS": {
+      "label": "Total confirmed bookings",
+      "group": "BOOKING"
+    },
+    "ACCOUNT_TOTAL_INVOICES_BALANCE": {
+      "label": "Total account invoice(s) balance",
+      "group": "INVOICE"
+    },
+    "ACCOUNT_TYPE_LABEL_ID": {
+      "label": "Account type",
+      "group": "ACCOUNT"
+    },
+    "ACCOUNT_WALLET_ALLOWANCE_AMOUNT": {
+      "label": "Wallet allowance amount",
+      "group": "ALLOWANCE"
+    }
+  }
+}
