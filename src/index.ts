@@ -82,6 +82,14 @@ async function loadSchemaWithFallback() {
 	return introspectEndpoint(env.ENDPOINT, env.HEADERS);
 }
 
+async function loadSchemaForSearch() {
+	if (schemaSource && !schemaSource.startsWith("http")) {
+		return introspectLocalSchema(schemaSource);
+	}
+
+	return loadSchemaWithFallback();
+}
+
 // Detect if this is an Optix API endpoint
 const IS_OPTIX = env.ENDPOINT.includes("optixapp.com") || env.ENDPOINT.includes("optix");
 
@@ -142,6 +150,391 @@ server.tool(
 				],
 			};
 		}
+	},
+);
+
+server.tool(
+	"search-schema",
+	"Search the GraphQL schema text and return matching lines with small context. Useful to avoid dumping the full schema.",
+	{
+		query: z.string().min(1),
+		max_results: z.number().int().min(1).max(200).default(10),
+		context_lines: z.number().int().min(0).max(5).default(0),
+		case_sensitive: z.boolean().default(false),
+		max_output_chars: z.number().int().min(200).max(8000).default(2000),
+	},
+	async ({ query, max_results, context_lines, case_sensitive, max_output_chars }) => {
+		try {
+			const schema = await loadSchemaForSearch();
+			const lines = schema.split(/\r?\n/);
+			const needle = case_sensitive ? query : query.toLowerCase();
+			const results: string[] = [];
+			const seen = new Set<string>();
+			let matches = 0;
+
+			for (let i = 0; i < lines.length; i++) {
+				const hay = case_sensitive ? lines[i] : lines[i].toLowerCase();
+				if (!hay.includes(needle)) continue;
+
+				matches += 1;
+				const start = Math.max(0, i - context_lines);
+				const end = Math.min(lines.length - 1, i + context_lines);
+
+				for (let j = start; j <= end; j++) {
+					const key = `${j}:${lines[j]}`;
+					if (seen.has(key)) continue;
+					seen.add(key);
+					results.push(`${j + 1}: ${lines[j]}`);
+				}
+
+				if (results.length >= max_results) break;
+			}
+
+			let truncated = results.length >= max_results;
+			let text = JSON.stringify(
+				{
+					query,
+					matches,
+					truncated,
+					results,
+				},
+				null,
+				2,
+			);
+
+			if (text.length > max_output_chars) {
+				truncated = true;
+				const cappedResults: string[] = [];
+				let total = 0;
+				for (const line of results) {
+					const nextLen = total + line.length + 1;
+					if (nextLen > max_output_chars) break;
+					cappedResults.push(line);
+					total = nextLen;
+				}
+				text = JSON.stringify(
+					{
+						query,
+						matches,
+						truncated,
+						results: cappedResults,
+					},
+					null,
+					2,
+				);
+			}
+			return {
+				content: [
+					{
+						type: "text",
+						text,
+					},
+				],
+			};
+		} catch (error) {
+			return {
+				isError: true,
+				content: [
+					{
+						type: "text",
+						text: `Failed to search schema: ${error}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+server.tool(
+	"get-enum-values",
+	"Return all values for a GraphQL enum by name. Use this instead of introspecting the full schema.",
+	{
+		enum_name: z.string().min(1),
+	},
+	async ({ enum_name }) => {
+		try {
+			const schema = await loadSchemaForSearch();
+			const lines = schema.split(/\r?\n/);
+			const target = `enum ${enum_name}`;
+			let start = -1;
+			for (let i = 0; i < lines.length; i++) {
+				if (lines[i].trim().startsWith(target)) {
+					start = i;
+					break;
+				}
+			}
+
+			if (start === -1) {
+				return {
+					isError: true,
+					content: [
+						{
+							type: "text",
+							text: `Enum not found: ${enum_name}`,
+						},
+					],
+				};
+			}
+
+			const values: string[] = [];
+			for (let i = start + 1; i < lines.length; i++) {
+				const line = lines[i].trim();
+				if (line.startsWith("}")) break;
+				if (!line || line.startsWith("#")) continue;
+				const val = line.split(/\s+/)[0];
+				if (val) values.push(val);
+			}
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(
+							{
+								enum: enum_name,
+								values,
+							},
+							null,
+							2,
+						),
+					},
+				],
+			};
+		} catch (error) {
+			return {
+				isError: true,
+				content: [
+					{
+						type: "text",
+						text: `Failed to read enum values: ${error}`,
+					},
+				],
+			};
+		}
+	},
+);
+
+server.tool(
+	"generate-query",
+	"Generate a safe GraphQL query template for a given intent and parameters. Returns query + variables.",
+	{
+		intent: z.enum([
+			"list_bookings",
+			"booking_details",
+			"list_users",
+			"user_by_email",
+			"list_resources",
+			"resource_availability",
+			"list_invoices",
+			"invoice_details",
+			"list_conversations",
+		]),
+		organization_id: z.string().optional(),
+		user_id: z.string().optional(),
+		email: z.string().optional(),
+		location_id: z.string().optional(),
+		resource_id: z.string().optional(),
+		booking_id: z.string().optional(),
+		invoice_id: z.string().optional(),
+		client_id: z.string().optional(),
+		start_timestamp: z.number().int().optional(),
+		end_timestamp: z.number().int().optional(),
+		limit: z.number().int().min(1).max(200).optional(),
+		page: z.number().int().min(1).optional(),
+	},
+	async (args) => {
+		const vars: Record<string, any> = {};
+		const limit = args.limit ?? 50;
+		const page = args.page ?? 1;
+
+		switch (args.intent) {
+			case "list_bookings": {
+				vars.page = page;
+				vars.limit = limit;
+				if (args.user_id) vars.userId = args.user_id;
+				if (args.location_id) vars.locationId = [args.location_id];
+				if (args.resource_id) vars.resourceId = [args.resource_id];
+				if (args.start_timestamp) vars.startFrom = args.start_timestamp;
+				if (args.end_timestamp) vars.startTo = args.end_timestamp;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Bookings($page: Int = 1, $limit: Int = 50, $userId: ID, $locationId: [ID], $resourceId: [ID], $startFrom: Int, $startTo: Int) {\n  bookings(page: $page, limit: $limit, user_id: $userId, location_id: $locationId, resource_id: $resourceId, start_timestamp_from: $startFrom, start_timestamp_to: $startTo) {\n    total\n    data { booking_id title start_timestamp end_timestamp is_new is_approved is_canceled is_rejected resource { resource_id name } user { user_id fullname email } }\n  }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "booking_details": {
+				vars.bookingId = args.booking_id;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Booking($bookingId: ID!) {\n  booking(booking_id: $bookingId) { booking_id title start_timestamp end_timestamp notes resource { resource_id name } location { location_id name } account { account_id name } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "list_users": {
+				vars.page = page;
+				vars.limit = limit;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Users($page: Int = 1, $limit: Int = 50) {\n  users(page: $page, limit: $limit) { total data { user_id fullname email is_active is_lead } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "user_by_email": {
+				vars.email = args.email;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query UserByEmail($email: String!) {\n  user(get_by_email: $email) { user_id fullname email is_admin is_active }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "list_resources": {
+				vars.page = page;
+				vars.limit = limit;
+				if (args.location_id) vars.locationId = [args.location_id];
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Resources($page: Int = 1, $limit: Int = 50, $locationId: [ID!]) {\n  resources(page: $page, limit: $limit, location_id: $locationId) { total data { resource_id name is_bookable capacity type { resource_type_id name } location { location_id name } } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "resource_availability": {
+				vars.start = args.start_timestamp;
+				vars.end = args.end_timestamp;
+				if (args.location_id) vars.locationId = [args.location_id];
+				if (args.resource_id) vars.resourceId = [args.resource_id];
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query ResourceAvailability($start: Int!, $end: Int!, $locationId: [ID!], $resourceId: [ID!]) {\n  resourceAvailability(input: { start_timestamp: $start, end_timestamp: $end, resource: { location_id: $locationId, resource_id: $resourceId } }) { resource_id score availability { start_timestamp end_timestamp } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "list_invoices": {
+				vars.page = page;
+				vars.limit = limit;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Invoices($page: Int = 1, $limit: Int = 50) {\n  invoices(page: $page, limit: $limit) { total data { invoice_id status due_timestamp total balance account { account_id name } } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "invoice_details": {
+				vars.invoiceId = args.invoice_id;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Invoice($invoiceId: ID!) {\n  invoice(invoice_id: $invoiceId) { invoice_id status due_timestamp total balance items { item_id name quantity total } billing_details { name email address city country } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+			case "list_conversations": {
+				vars.orgId = args.organization_id ?? null;
+				vars.limit = limit;
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(
+								{
+									query: `query Conversations($orgId: ID, $limit: Int = 200) {\n  conversations(organization_id: $orgId, limit: $limit) { total data { conversation_id name conversation_type latest_message { message_id message timestamp } unread_message_count } }\n}\n`,
+									variables: vars,
+								},
+								null,
+								2,
+							),
+						},
+					],
+				};
+			}
+		}
+
+		return {
+			isError: true,
+			content: [
+				{
+					type: "text",
+					text: "Unsupported intent or missing required parameters.",
+				},
+			],
+		};
 	},
 );
 

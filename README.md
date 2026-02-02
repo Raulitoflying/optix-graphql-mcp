@@ -385,6 +385,98 @@ tools.set("optix_example", {
 
 MIT License - see [LICENSE](LICENSE)
 
+## Automation Mapping (Natural Language Examples)
+
+This section explains how to translate natural language requests into automation rules.
+
+### Logic Rules
+
+- Default: multiple conditions mean AND.
+- Use groups for OR:
+  - Each group is AND.
+  - Groups are OR.
+
+### Example 1: Single condition
+
+Natural language:
+"Send a message when a user books for the 1st time."
+
+Structure:
+```
+trigger_type: NEW_BOOKING
+conditions_logic: SINGLE
+conditions:
+  - operation: EQUALS
+    operands:
+      - { type: variable, name: NTH_TIME }
+      - { type: value, value: 1 }
+actions:
+  - SEND_MESSAGE
+```
+
+### Example 2: AND conditions
+
+Natural language:
+"If booking source is not drop-in AND this is the 1st booking, send a message."
+
+Structure:
+```
+trigger_type: NEW_BOOKING
+conditions_logic: AND
+conditions:
+  - operation: DIFF
+    operands:
+      - { type: variable, name: BOOKING_SOURCE }
+      - { type: value, value: Booking::SOURCE_DROP_IN }
+  - operation: EQUALS
+    operands:
+      - { type: variable, name: NTH_TIME }
+      - { type: value, value: 1 }
+actions:
+  - SEND_MESSAGE
+```
+
+### Example 3: OR groups
+
+Natural language:
+"If account source is User app OR Web onboarding, send an email."
+
+Structure:
+```
+trigger_type: NEW_UNCONFIRMED_USER
+conditions_groups:
+  - conditions:
+      - operation: EQUALS
+        operands:
+          - { type: variable, name: ACCOUNT_SOURCE }
+          - { type: value, value: User app }
+  - conditions:
+      - operation: EQUALS
+        operands:
+          - { type: variable, name: ACCOUNT_SOURCE }
+          - { type: value, value: Web onboarding }
+actions:
+  - SEND_EMAIL
+```
+
+### Example 4: Date modifier
+
+Natural language:
+"Send a message 7 days before the oldest unpaid invoice due date."
+
+Structure:
+```
+trigger_type: DATE
+conditions_logic: SINGLE
+conditions:
+  - operation: EQUALS
+    operands:
+      - { type: variable, name: ACCOUNT_MIN_DUE_INVOICE_DUE_DATE }
+      - { type: variable, name: TRIGGER_DATE, date_modifier: { value: -7, unit: DAY } }
+actions:
+  - SEND_MESSAGE
+```
+
 ## 🙏 Acknowledgments
 
 - Built on [mcp-graphql](https://github.com/blurrah/mcp-graphql)

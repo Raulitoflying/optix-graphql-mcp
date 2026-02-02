@@ -7,6 +7,9 @@
  */
 
 import { z } from "zod";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { OPTIX_QUERIES, OPTIX_MUTATIONS } from "./queries.js";
 import type {
 	Booking,
@@ -67,6 +70,226 @@ async function executeGraphQL(
 	return result.data;
 }
 
+function resolveSchemaPath(): string | undefined {
+	const envPath = process.env.SCHEMA;
+	if (envPath && !envPath.startsWith("http")) {
+		return envPath;
+	}
+	const currentDir = dirname(fileURLToPath(import.meta.url));
+	const candidate = resolve(currentDir, "../schema.full.graphql");
+	return existsSync(candidate) ? candidate : undefined;
+}
+
+function readSchemaText(): string {
+	const schemaPath = resolveSchemaPath();
+	if (!schemaPath || !existsSync(schemaPath)) {
+		throw new Error("Local schema not found. Set SCHEMA to a local file path.");
+	}
+	return readFileSync(schemaPath, "utf8");
+}
+
+function getEnumValues(enumName: string): string[] {
+	const schema = readSchemaText();
+	const lines = schema.split(/\r?\n/);
+	const target = `enum ${enumName}`;
+	let start = -1;
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].trim().startsWith(target)) {
+			start = i;
+			break;
+		}
+	}
+	if (start === -1) return [];
+	const values: string[] = [];
+	for (let i = start + 1; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (line.startsWith("}")) break;
+		if (!line || line.startsWith("#")) continue;
+		const val = line.split(/\s+/)[0];
+		if (val) values.push(val);
+	}
+	return values;
+}
+
+function resolveWorkflowsConfigPath(): string | undefined {
+	const direct = process.env.WORKFLOWS_CONFIG_PATH;
+	if (direct && existsSync(direct)) return direct;
+	const base = process.env.OPTIX_CODEBASE_PATH;
+	if (base) {
+		const candidate = resolve(base, "api-v2/config/workflows.php");
+		if (existsSync(candidate)) return candidate;
+	}
+	return undefined;
+}
+
+type WorkflowMappings = {
+	triggerVariables: Record<string, string[]>;
+	triggerOps: Record<string, string[]>;
+	triggerActions: Record<string, string[]>;
+	recipes: {
+		name?: string;
+		recipe_type?: string;
+		trigger_type?: string;
+		actions: string[];
+		conditions_logic?: "AND" | "OR" | "SINGLE" | "NONE";
+		conditions: {
+			operation?: string;
+			operands?: {
+				type: "variable" | "value";
+				name?: string;
+				value?: string;
+				date_modifier?: {
+					value: string;
+					unit: string;
+				};
+			}[];
+		}[];
+		conditions_groups?: {
+			conditions: {
+				operation?: string;
+				operands?: {
+					type: "variable" | "value";
+					name?: string;
+					value?: string;
+					date_modifier?: {
+						value: string;
+						unit: string;
+					};
+				}[];
+			}[];
+		}[];
+	}[];
+};
+
+function parseWorkflowConfig(): WorkflowMappings | null {
+	const envPath = process.env.AUTOMATION_RULES_PATH;
+	const currentDir = dirname(fileURLToPath(import.meta.url));
+	const defaultPath = resolve(currentDir, "../../automation-mapping.json");
+	const mappingPath = envPath && existsSync(envPath) ? envPath : defaultPath;
+	if (!existsSync(mappingPath)) return null;
+
+	const raw = readFileSync(mappingPath, "utf8");
+	const parsed = JSON.parse(raw) as {
+		rules?: {
+			name?: string;
+			trigger_type?: string;
+			actions?: string[];
+			conditions_logic?: "AND" | "OR" | "SINGLE" | "NONE";
+			conditions?: {
+				operation?: string;
+				operands?: {
+					type: "variable" | "value";
+					name?: string;
+					value?: string;
+					date_modifier?: { value: string; unit: string };
+				}[];
+			}[];
+			conditions_groups?: {
+				conditions: {
+					operation?: string;
+					operands?: {
+						type: "variable" | "value";
+						name?: string;
+						value?: string;
+						date_modifier?: { value: string; unit: string };
+					}[];
+				}[];
+			}[];
+		}[];
+		triggers?: {
+			trigger_type?: string;
+			rules?: {
+				name?: string;
+				trigger_type?: string;
+				actions?: string[];
+				conditions_logic?: "AND" | "OR" | "SINGLE" | "NONE";
+				conditions?: {
+					operation?: string;
+					operands?: {
+						type: "variable" | "value";
+						name?: string;
+						value?: string;
+						date_modifier?: { value: string; unit: string };
+					}[];
+				}[];
+				conditions_groups?: {
+					conditions: {
+						operation?: string;
+						operands?: {
+							type: "variable" | "value";
+							name?: string;
+							value?: string;
+							date_modifier?: { value: string; unit: string };
+						}[];
+					}[];
+				}[];
+			}[];
+		}[];
+	};
+
+	const triggerVariables: Record<string, Set<string>> = {};
+	const triggerOps: Record<string, Set<string>> = {};
+	const triggerActions: Record<string, Set<string>> = {};
+	const recipes: WorkflowMappings["recipes"] = [];
+
+	const rules =
+		parsed.triggers?.flatMap((group) =>
+			(group.rules ?? []).map((rule) => ({
+				...rule,
+				trigger_type: rule.trigger_type ?? group.trigger_type,
+			})),
+		) ?? parsed.rules ?? [];
+
+	for (const rule of rules) {
+		const trigger = rule.trigger_type;
+		const actions = rule.actions ?? [];
+		const conditions = rule.conditions ?? [];
+		const conditionsGroups = rule.conditions_groups ?? [];
+		const allConditions = [
+			...conditions,
+			...conditionsGroups.flatMap((group) => group.conditions ?? []),
+		];
+		if (trigger) {
+			if (!triggerVariables[trigger]) triggerVariables[trigger] = new Set();
+			if (!triggerOps[trigger]) triggerOps[trigger] = new Set();
+			if (!triggerActions[trigger]) triggerActions[trigger] = new Set();
+
+			for (const condition of allConditions) {
+				if (condition.operation) {
+					triggerOps[trigger].add(condition.operation);
+				}
+				for (const operand of condition.operands ?? []) {
+					if (operand.type === "variable" && operand.name) {
+						triggerVariables[trigger].add(operand.name);
+					}
+				}
+			}
+			for (const action of actions) {
+				triggerActions[trigger].add(action);
+			}
+		}
+
+		recipes.push({
+			name: rule.name,
+			trigger_type: trigger,
+			actions: actions,
+			conditions_logic: rule.conditions_logic,
+			conditions: conditions,
+			conditions_groups: conditionsGroups,
+		});
+	}
+
+	const toList = (obj: Record<string, Set<string>>) =>
+		Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, Array.from(v)]));
+
+	return {
+		triggerVariables: toList(triggerVariables),
+		triggerOps: toList(triggerOps),
+		triggerActions: toList(triggerActions),
+		recipes,
+	};
+}
+
 /**
  * Create all Optix business tools
  */
@@ -75,6 +298,8 @@ export function createOptixTools(): Map<string, OptixTool> {
 	
 	// Check if mutations are allowed via environment variable
 	const allowMutations = process.env.ALLOW_MUTATIONS === "true";
+	const automationLogicExplain =
+		"Conditions use AND by default unless grouped. Use conditions_groups: each group is AND; groups are OR. If no groups, treat conditions as AND.";
 
 	// ==================== Booking Management Tools ====================
 
@@ -171,6 +396,95 @@ export function createOptixTools(): Map<string, OptixTool> {
 				recommendation: conflictingBookings.length === 0
 					? "✅ Resource is available for the requested time"
 					: `❌ Resource is not available. ${conflictingBookings.length} conflicting booking(s) found.`,
+			};
+		},
+	});
+
+	// ==================== Automation / Workflow Tools ====================
+
+	tools.set("optix_list_automation_triggers", {
+		name: "optix_list_automation_triggers",
+		description: "List all automation trigger types.",
+		inputSchema: z.object({}),
+		execute: async () => {
+			const triggers = getEnumValues("WorkflowTriggerType");
+			return { triggers };
+		},
+	});
+
+	tools.set("optix_list_automation_actions", {
+		name: "optix_list_automation_actions",
+		description: "List automation actions. Optionally filter by trigger_type if mappings are available.",
+		inputSchema: z.object({
+			trigger_type: z.string().optional().describe("Optional trigger type to filter actions"),
+		}),
+		execute: async (args) => {
+			const allActions = getEnumValues("WorkflowActionType");
+			const mappings = parseWorkflowConfig();
+			if (args.trigger_type && mappings?.triggerActions?.[args.trigger_type]) {
+				return {
+					trigger_type: args.trigger_type,
+					actions: mappings.triggerActions[args.trigger_type],
+					note: "Filtered by automation-mapping.json rules",
+				};
+			}
+			return { actions: allActions };
+		},
+	});
+
+	tools.set("optix_list_automation_conditions", {
+		name: "optix_list_automation_conditions",
+		description: "List automation condition operations and variables. Optionally filter by trigger_type if mappings are available.",
+		inputSchema: z.object({
+			trigger_type: z.string().optional().describe("Optional trigger type to filter variables/operations"),
+		}),
+		execute: async (args) => {
+			const operations = getEnumValues("ConditionOperation");
+			const variables = getEnumValues("EvaluableVariable");
+			const mappings = parseWorkflowConfig();
+			if (args.trigger_type && mappings?.triggerVariables?.[args.trigger_type]) {
+				return {
+					trigger_type: args.trigger_type,
+					operations: mappings.triggerOps[args.trigger_type] ?? [],
+					variables: mappings.triggerVariables[args.trigger_type] ?? [],
+					note: "Filtered by automation-mapping.json rules",
+				};
+			}
+			return { operations, variables };
+		},
+	});
+
+	tools.set("optix_automation_rules", {
+		name: "optix_automation_rules",
+		description: "List automation recipes (rules) with trigger and action summary.",
+		inputSchema: z.object({}),
+		execute: async () => {
+			const mappings = parseWorkflowConfig();
+			if (!mappings) {
+				throw new Error("AUTOMATION_RULES_PATH not set and automation-mapping.json not found.");
+			}
+			return { recipes: mappings.recipes, logic_explain: automationLogicExplain };
+		},
+	});
+
+	tools.set("optix_automation_dryrun", {
+		name: "optix_automation_dryrun",
+		description: "Simulate which actions/conditions apply for a given trigger type (rule-based only).",
+		inputSchema: z.object({
+			trigger_type: z.string().describe("Trigger type to simulate"),
+		}),
+		execute: async (args) => {
+			const mappings = parseWorkflowConfig();
+			if (!mappings) {
+				throw new Error("AUTOMATION_RULES_PATH not set and automation-mapping.json not found.");
+			}
+			return {
+				trigger_type: args.trigger_type,
+				actions: mappings.triggerActions[args.trigger_type] ?? [],
+				operations: mappings.triggerOps[args.trigger_type] ?? [],
+				variables: mappings.triggerVariables[args.trigger_type] ?? [],
+				note: "Rule-based mapping from automation-mapping.json; no user-level evaluation performed.",
+				logic_explain: automationLogicExplain,
 			};
 		},
 	});
